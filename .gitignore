@@ -78,3 +78,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Generated web artifacts and local evidence
+outputs/
+*.wasm

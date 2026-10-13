@@ -1,4 +1,5 @@
-import {element as $} from './dom.js';
+import type {GameOptions} from './options.js';
+import {element as $} from './renderer-elements.js';
 import createMenuAudio from './audio-core.js';
 import {loadNativeUi,NativeMenu,decodeMenuSounds} from './native-ui.js';
 import {prepareLamp} from './lamp.js';
@@ -21,9 +22,9 @@ let post=null,outputFormat;
 let texturedPipeline,emissivePipeline,decalPipeline,capturePipeline,lightingSystem,sceneLighting,frameLayout;
 let device, context, pipeline, bindGroup, uniform, depth, wasm, mesh, modelList = [];
 let walking = false, spawn, accumulator=0, inputActive=false, walkSummary='';
-let pointerCapture=null;let menuPaused=false;const preferences={sensitivity:1,invertX:false,brightness:1,invertY:false,subtitles:true,language:"Spa",volume:1,renderScale:1};
-export function configureGame(values: any){Object.assign(preferences,values);gameAudio?.setVolume(preferences.volume);if(gameAudio&&gameAudio.language!==preferences.language)gameAudio.setLanguage(preferences.language).catch((e: any)=>{$('menu-error').textContent=e.message;});}
-export function setMenuPaused(value: any){menuPaused=value;if(value){acoustics?.lamp?.suspend();pauseWalk();pointerCapture?.release();}}
+let pointerCapture=null;let menuPaused=false;const preferences:GameOptions={sensitivity:1,invertX:false,brightness:1,invertY:false,subtitles:true,language:"Spa",volume:1,renderScale:1};
+export function configureGame(values: Partial<GameOptions>){Object.assign(preferences,values);gameAudio?.setVolume(preferences.volume);if(gameAudio&&gameAudio.language!==preferences.language)gameAudio.setLanguage(preferences.language).catch((e: any)=>{$('menu-error').textContent=e.message;});}
+export function setMenuPaused(value: boolean){menuPaused=value;if(value){acoustics?.lamp?.suspend();pauseWalk();pointerCapture?.release();}}
 const controlsActive=()=>!menuPaused&&(document.pointerLockElement===canvas && document.hasFocus());
 let gameAudio=null,acoustics=null,locomotion=null,playerBody=null,playerFeet=[0,0,0];
 let nextSession=null,sessionGeneration=0,transitioning=false;

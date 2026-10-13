@@ -8,12 +8,18 @@
     "test": "bun test web/server/*.test.ts web/client/tests",
     "build:wasm": "bash web/build.sh",
     "build": "bun web/web-build.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.strict.json",
     "audit:publication": "python3 tools/web/audit-publication.py"
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@webgpu/types": "^0.1.74",
     "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }

@@ -38,4 +38,3 @@ em++ "${lua_objects[@]}" -I"$lua_dir/src" ../src/engine/script/lua_vm.cpp ../src
   -sEXPORTED_RUNTIME_METHODS='["UTF8ToString","HEAPU8","HEAPF32","HEAPU32"]' -o client/dist/geometry.js
 
 bash ./build-audio.sh
-bun web-build.ts

@@ -1,3 +1,17 @@
+2026-10-14 — REACT Y CONTRATOS TIPADOS
+VERIFICADA: no hay builds WASM ni outputs nuevos en Git; sólo web/wasm/src.
+Build nativo explícito: bun run build:wasm. bun dev detecta módulos ausentes.
+IMPLEMENTADA: React controla wizard, carga/progreso y configuración web.
+El menú original conserva su renderer y PhotoOption; React no lo reemplaza.
+VERIFICADA: strict + noUncheckedIndexedAccess en wizard/settings, opciones,
+streaming HTTP, ciclo de etapas y contador GPU; sin any en estos módulos.
+PENDIENTE: tipar ABI WASM, archivos decodificados, audio, renderer y adaptador
+nativo; el proyecto completo aún no cumple strict. No ocultar con supresiones.
+VERIFICADA: 104 pruebas / 0 fallos (44 archivos, 125.39 s); build Bun y
+ambas comprobaciones TypeScript. Wizard → carga → menú → ajustes React y
+reinicio probados en IAB, sin errores de consola. Captura local no publicada.
+Siguiente entrega: contratos ABI y archivos tipados; ampliar tsconfig.strict.json.
+
 2026-10-14 — PUBLICACIÓN, ESTRUCTURA WEB Y TYPESCRIPT
 VERIFICADA: checkpoint de fuentes publicado en fork, rama web/browser-port.
 VERIFICADA: cliente, servidor y puente WASM agrupados bajo web/client,

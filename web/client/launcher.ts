@@ -1,71 +1,66 @@
-import {element as $} from './dom.js';
 // SPDX-License-Identifier: MIT
+import {flushSync} from 'react-dom';
 import {remoteArchive} from './remote.js';
-// Import the renderer only after choosing Play. The wizard must work on its own.
-let game=null,gameOptions={},nativeMenu=null;
-function configureGame(values: any){gameOptions={...gameOptions,...values};game?.configureGame(gameOptions);}
-function setMenuPaused(value: any){game?.setMenuPaused(value);}
-async function unloadWalk(){nativeMenu?.destroy();nativeMenu=null;await game?.unloadWalk();}
-async function loadGame(){
- if(!game){const module=await import('./app.js');await module.ready;game=module;game.configureGame(gameOptions);}
- return game;
-}
-
-const input=$('pkg'),status=$('loading-status'),error=$('import-error');
-let importing=false;
-const api=async(path: any,options?: any)=>{const r=await fetch(new URL(path,import.meta.url),options);const json=await r.json();if(!r.ok)throw new Error(json.error||'No se pudo completar la operación.');return json;};
-function step(n: any,title: any,description: any){for(let i=1;i<=3;i++)$('step-'+i).setAttribute('aria-current',i===n?'step':'false');$('wizard-title').textContent=title;$('wizard-description').textContent=description;}
+import {mountWizard} from './wizard.js';
+import {mountSettings} from './web-settings.js';
+import {brightnessIndex,brightnessLevels,errorMessage,parseOptions,type GameOptions} from './options.js';
+// Only the renderer-owned canvas and native dialogs cross this imperative boundary.
+function node<T extends HTMLElement>(id:string,kind:{new():T}):T{const element=document.getElementById(id);if(!(element instanceof kind))throw new Error(`Missing UI element: ${id}`);return element;}
+const viewer=node('viewer',HTMLElement),startGame=node('start-game',HTMLElement),menu=node('game-menu',HTMLDialogElement),confirmation=node('restart-confirm',HTMLDialogElement),menuError=node('menu-error',HTMLElement);
+let game:typeof import('./app.js')|null=null;
+let nativeMenu:Awaited<ReturnType<typeof import('./app.js')['createOriginalMenu']>>|null=null;
+let options:GameOptions=parseOptions(null);
+try{options=parseOptions(JSON.parse(localStorage.getItem('pt-web-options')??'null'));}catch{}
+function configure(values:GameOptions){options=values;game?.configureGame(options);try{localStorage.setItem('pt-web-options',JSON.stringify(options));}catch{}settings.update(options);}
+async function loadGame(){if(!game){const module=await import('./app.js');await module.ready;game=module;game.configureGame(options);}return game;}
+function pause(value:boolean){game?.setMenuPaused(value);}
 const development=new URL(location.href).searchParams.has('dev');document.body.classList.toggle('development',development);
-const progress=$('import-progress');
-function loading(title: any,done?: any,total?: any){step(2,title,'');progress.hidden=false;if(total){progress.max=total;progress.value=done;status.textContent=Math.round(done/total*100)+'%';}else{progress.removeAttribute('value');status.textContent='';}}
-function prepared(){step(3,'P.T.','Tu copia está lista.');$('choose-actions').hidden=false;$('resume-library').hidden=false;$('open-viewer').hidden=true;progress.hidden=true;status.textContent='';}
-function upload(file: any){return new Promise((resolve: any,reject: any)=>{const xhr=new XMLHttpRequest();xhr.open('POST',new URL('api/pkg',import.meta.url));xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.upload.onprogress=(e: any)=>{if(e.lengthComputable)loading('Cargando tu copia',e.loaded,e.total);};xhr.upload.onload=()=>loading('Preparando tu copia');xhr.onerror=()=>reject(new Error('Se perdió la conexión. Vuelve a intentarlo.'));xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve();else reject(new Error('No se pudo preparar esta copia. Selecciona otro archivo o vuelve a intentarlo.'));};xhr.send(file);});}
-input.onchange=async()=>{
- const file=input.files[0];if(!file||importing)return;
- importing=true;error.textContent='';$('choose-actions').hidden=true;$('open-viewer').hidden=true;loading('Cargando tu copia');
- try{await upload(file);await $('open-viewer').onclick(new PointerEvent('click'));}
- catch(e){step(1,'No se pudo cargar','Vuelve a seleccionar tu copia.');error.textContent=e.message;$('choose-actions').hidden=false;}
- finally{importing=false;progress.hidden=true;input.value='';}
-};
-$('resume-library').onclick=()=> $('open-viewer').onclick(new PointerEvent('click'));
-$('open-viewer').onclick=async()=>{
- error.textContent='';$('open-viewer').disabled=true;$('choose-actions').hidden=true;loading('Cargando partida',0,7);
- try{const runtime=await loadGame();const loaded=await runtime.loadWalk(await remoteArchive(import.meta.url),await remoteArchive(import.meta.url,'texture.qar'),(n: any,total: any)=>loading('Cargando partida',n,total),new URL(location.href).searchParams.get('scene')==='hallway'?'hallway':'start');if(!loaded)throw new Error('No se pudo iniciar la partida. Vuelve a intentarlo.');nativeMenu?.destroy();nativeMenu=await runtime.createOriginalMenu($('native-menu'),await remoteArchive(import.meta.url),await remoteArchive(import.meta.url,'texture.qar'),nativeAction);setMenuPaused(true);$('wizard').hidden=true;$('viewer').hidden=false;$('start-game').hidden=false;document.title='P.T. · Web';}
- catch(e){error.textContent=e.message;step(1,'No se pudo iniciar','Vuelve a intentarlo.');$('choose-actions').hidden=false;}
- finally{$('open-viewer').disabled=false;progress.hidden=true;status.textContent='';}
-};
-$('start-playing').onclick=()=>{$('start-game').hidden=true;setMenuPaused(false);$('enter').click();};
-$('back-library').onclick=async()=>{await unloadWalk();$('start-game').hidden=true;$('viewer').hidden=true;$('wizard').hidden=false;prepared();};
-try{const s=await api('api/status');if(s.state==='ready')$('resume-library').hidden=false;}catch(e){error.textContent='No se pudo conectar. Recarga la página para intentarlo de nuevo.';}
-
-// Web menu: only implemented controls are interactive; native-only settings are explicit.
-const menu=$('game-menu'),confirmation=$('restart-confirm');
-const brightnessLevels=[.48,.55,.60,.68,.76,.84,.92,1,1.05,1.09,1.13];
-let options={sensitivity:1,invertX:false,brightness:1,invertY:false,subtitles:true,language:"Spa",volume:1,renderScale:1};
-try{const saved=JSON.parse(localStorage.getItem('pt-web-options')||'{}');for(const k of Object.keys(options))if(typeof saved[k]===typeof options[k])options[k]=saved[k];}catch{}
-options.brightness=Math.max(.48,Math.min(1.13,options.brightness));
-options.sensitivity=Math.max(.2,Math.min(3,options.sensitivity));options.volume=Math.max(0,Math.min(1,options.volume));if(![1,.75,.5].includes(options.renderScale))options.renderScale=1;
-$('brightness').value=brightnessLevels.reduce((best: any,v: any,i: any)=>Math.abs(v-options.brightness)<Math.abs(brightnessLevels[best]-options.brightness)?i:best,0);$('invert-x').checked=options.invertX;$('sensitivity').value=String(options.sensitivity);$('master-volume').value=String(options.volume*100);$('invert-y').checked=options.invertY;$('show-subtitles').checked=options.subtitles;$('render-scale').value=String(options.renderScale);
-configureGame(options);
-for(const id of ['subtitle-language','brightness','invert-x','sensitivity','master-volume','invert-y','show-subtitles','render-scale'])$(id).oninput=()=>{options={language:$('subtitle-language').value,brightness:brightnessLevels[Number($('brightness').value)],invertX:$('invert-x').checked,sensitivity:Number($('sensitivity').value),volume:Number($('master-volume').value)/100,invertY:$('invert-y').checked,subtitles:$('show-subtitles').checked,renderScale:Number($('render-scale').value)};configureGame(options);try{localStorage.setItem('pt-web-options',JSON.stringify(options));}catch{}};
+async function start(progress:(done:number,total:number)=>void){
+ const runtime=await loadGame();
+ const archive=await remoteArchive(import.meta.url),textures=await remoteArchive(import.meta.url,'texture.qar');
+ const loaded=await runtime.loadWalk(archive,textures,progress,new URL(location.href).searchParams.get('scene')==='hallway'?'hallway':'start');
+ if(!loaded)throw new Error('No se pudo iniciar la partida. Vuelve a intentarlo.');
+ nativeMenu?.destroy();nativeMenu=await runtime.createOriginalMenu(node('native-menu',HTMLCanvasElement),archive,textures,nativeAction);
+ pause(true);viewer.hidden=false;startGame.hidden=false;document.title='P.T. · Web';
+}
+function upload(file:File,progress:(done?:number,total?:number)=>void):Promise<void>{return new Promise((resolve,reject)=>{
+ const xhr=new XMLHttpRequest();xhr.open('POST',new URL('api/pkg',import.meta.url));xhr.setRequestHeader('Content-Type','application/octet-stream');
+ xhr.upload.onprogress=e=>{if(e.lengthComputable)progress(e.loaded,e.total);};xhr.upload.onload=()=>progress();
+ xhr.onerror=()=>reject(new Error('Se perdió la conexión. Vuelve a intentarlo.'));
+ xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(new Error('No se pudo preparar esta copia. Selecciona otro archivo o vuelve a intentarlo.'));xhr.send(file);
+});}
+let wizard:ReturnType<typeof mountWizard>;
+let settings:ReturnType<typeof mountSettings>;
+flushSync(()=>{
+ wizard=mountWizard(node('wizard-root',HTMLElement),{start,upload,async hasLibrary(){const response=await fetch(new URL('api/status',import.meta.url));if(!response.ok)throw new Error('Status unavailable');const value:unknown=await response.json();return typeof value==='object'&&value!==null&&'state' in value&&value.state==='ready';}});
+ settings=mountSettings(node('web-settings',HTMLElement),options,{change:configure,fullscreen:()=>void fullscreen(),restart:()=>confirmation.showModal(),capture(){nativeMenu?.close();menu.close();document.body.classList.add('capture-view');}});
+});
+async function library(){nativeMenu?.destroy();nativeMenu=null;await game?.unloadWalk();startGame.hidden=true;viewer.hidden=true;wizard.showLibrary();}
+node('start-playing',HTMLButtonElement).onclick=()=>{startGame.hidden=true;pause(false);node('enter',HTMLButtonElement).click();};
+node('back-library',HTMLButtonElement).onclick=()=>void library();
 let settingsPage=false;
-function nativeOptions(){return {...options,brightnessIndex:Number($('brightness').value)};}
-function nativeAction(action: any,value: any){if(action==='web'){menuPage(true);return;}if(action==='exit'){$('menu-library').click();return;}if(action==='back'){resume();return;}if(action==='brightness'){$('brightness').value=value;options.brightness=brightnessLevels[value];}else if(action==='language'){options.subtitles=!!value;if(value)options.language=value[0].toUpperCase()+value.slice(1);$('show-subtitles').checked=options.subtitles;$('subtitle-language').value=options.language;}else{options[action]=value;$(action==='invertY'?'invert-y':'invert-x').checked=value;}configureGame(options);try{localStorage.setItem('pt-web-options',JSON.stringify(options));}catch{}nativeMenu?.setOptions(nativeOptions());}
-function menuPage(web: any){settingsPage=web;menu.classList.toggle('native-page',!web);$('original-options').hidden=true;$('native-menu').hidden=web;$('native-web-settings').hidden=true;$('web-settings').hidden=!web;$('settings-back').hidden=!web;$('resume-game').hidden=web;$('menu-library').hidden=web;$('menu-title').textContent=web?'CONFIGURACIÓN WEB':'OPCIONES';if(web){nativeMenu?.close();$('menu-title').focus({preventScroll:true});}else nativeMenu?.open(nativeOptions());menu.scrollTop=0;}
-$('native-web-settings').onclick=()=>menuPage(true);
-$('open-web-settings').onclick=()=>menuPage(true);$('settings-back').onclick=()=>menuPage(false);
-function openMenu(){document.body.classList.remove('capture-view');if($('viewer').hidden||menu.open)return;setMenuPaused(true);menu.showModal();menuPage(false);menu.scrollTop=0;}
-$('hide-menu-capture').onclick=()=>{nativeMenu?.close();menu.close();document.body.classList.add('capture-view');};
-async function resume(){await nativeMenu?.fadeOut();document.body.classList.remove('capture-view');nativeMenu?.close();menu.close();setMenuPaused(false);$('enter').click();}
+function nativeOptions(){return {...options,brightnessIndex:brightnessIndex(options.brightness)};}
+function nativeAction(action:string,value:unknown){
+ if(action==='web'){menuPage(true);return;}if(action==='exit'){void exitToLibrary();return;}if(action==='back'){void resume();return;}
+ const next={...options};
+ if(action==='brightness'&&typeof value==='number'&&Number.isInteger(value)&&brightnessLevels[value]!==undefined)next.brightness=brightnessLevels[value]!;
+ else if(action==='language'&&(typeof value==='string'||value===null||value===false)){next.subtitles=!!value;if(typeof value==='string'&&value)next.language=value[0]!.toUpperCase()+value.slice(1);}
+ else if((action==='invertX'||action==='invertY')&&typeof value==='boolean')next[action]=value;
+ configure(next);nativeMenu?.setOptions(nativeOptions());
+}
+function menuPage(web:boolean){settingsPage=web;menu.classList.toggle('native-page',!web);node('original-options',HTMLElement).hidden=true;node('native-menu',HTMLCanvasElement).hidden=web;node('native-web-settings',HTMLButtonElement).hidden=true;node('web-settings',HTMLElement).hidden=!web;node('settings-back',HTMLButtonElement).hidden=!web;node('resume-game',HTMLButtonElement).hidden=web;node('menu-library',HTMLButtonElement).hidden=web;const title=node('menu-title',HTMLElement);title.textContent=web?'CONFIGURACIÓN WEB':'OPCIONES';if(web){nativeMenu?.close();title.focus({preventScroll:true});}else nativeMenu?.open(nativeOptions());menu.scrollTop=0;}
+node('native-web-settings',HTMLButtonElement).onclick=()=>menuPage(true);node('open-web-settings',HTMLButtonElement).onclick=()=>menuPage(true);node('settings-back',HTMLButtonElement).onclick=()=>menuPage(false);
+function openMenu(){document.body.classList.remove('capture-view');if(viewer.hidden||menu.open)return;pause(true);menu.showModal();menuPage(false);menu.scrollTop=0;}
+async function resume(){await nativeMenu?.fadeOut();document.body.classList.remove('capture-view');nativeMenu?.close();menu.close();pause(false);node('enter',HTMLButtonElement).click();}
 document.addEventListener('game-pointer-released',openMenu);
-document.addEventListener('game-pointer-error',()=>{openMenu();$('menu-error').textContent='Este navegador no pudo capturar el ratón. Abre esta misma dirección en Chrome o Edge y pulsa Continuar. El cursor debe desaparecer y la cámara debe girar sin límites.';});
-$('pause-menu').onclick=openMenu;$('resume-game').onclick=resume;menu.addEventListener('cancel',(e: any)=>{e.preventDefault();if(settingsPage)menuPage(false);else resume();});
-addEventListener('keydown',(e: any)=>{if(e.code==='Escape'&&!menu.open&&!confirmation.open&&!$('viewer').hidden){e.preventDefault();e.stopImmediatePropagation();openMenu();}},true);
-// Focus loss must not open the menu. Hidden tabs suspend audio in app.js.
-addEventListener('focus',()=>{if(!$('viewer').hidden&&!menu.open&&$('start-game').hidden)$('menu-error').textContent='';});
-$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('viewer').requestFullscreen();}catch(e){$('menu-error').textContent='Pantalla completa no disponible: '+e.message;}};
-$('menu-library').onclick=()=>{nativeMenu?.close();menu.close();setMenuPaused(false);$('back-library').click();};
-$('restart-session').onclick=()=>confirmation.showModal();$('cancel-restart').onclick=()=>confirmation.close();
-$('confirm-restart').onclick=async()=>{confirmation.close();menu.close();setMenuPaused(false);await $('back-library').onclick(new PointerEvent('click'));await $('open-viewer').onclick(new PointerEvent('click'));};
-
-for(const id of ['shadows','reflections','indirect','mirrors']){const label=$(id).closest('label');label.classList.add('setting');$('menu-graphics').append(label);}
+document.addEventListener('game-pointer-error',()=>{openMenu();menuError.textContent='Este navegador no pudo capturar el ratón. Abre esta misma dirección en Chrome o Edge y pulsa Continuar.';});
+node('pause-menu',HTMLButtonElement).onclick=openMenu;node('resume-game',HTMLButtonElement).onclick=()=>void resume();menu.addEventListener('cancel',e=>{e.preventDefault();if(settingsPage)menuPage(false);else void resume();});
+window.addEventListener('keydown',e=>{if(e.code==='Escape'&&!menu.open&&!confirmation.open&&!viewer.hidden){e.preventDefault();e.stopImmediatePropagation();openMenu();}},true);
+addEventListener('focus',()=>{if(!viewer.hidden&&!menu.open&&startGame.hidden)menuError.textContent='';});
+async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await viewer.requestFullscreen();}catch(error){menuError.textContent='Pantalla completa no disponible: '+errorMessage(error);}}
+async function exitToLibrary(){nativeMenu?.close();menu.close();pause(false);await library();}
+node('menu-library',HTMLButtonElement).onclick=()=>void exitToLibrary();
+node('cancel-restart',HTMLButtonElement).onclick=()=>confirmation.close();
+node('confirm-restart',HTMLButtonElement).onclick=async()=>{confirmation.close();await exitToLibrary();await wizard.start();};
+// Renderer feature controls remain renderer-owned; React never reconciles these nodes.
+for(const id of ['shadows','reflections','indirect','mirrors']){const label=node(id,HTMLInputElement).closest('label');if(label){label.classList.add('setting');node('menu-graphics',HTMLElement).append(label);}}

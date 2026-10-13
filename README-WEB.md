@@ -1,6 +1,6 @@
 # P.T. Web port
 
-Bun server, TypeScript browser client, WebGPU rendering and the shared C++ engine
+Bun server, React/TypeScript browser UI, WebGPU rendering and the shared C++ engine
 compiled to WASM. This is an incomplete gameplay port. No PKG or extracted game
 assets are included; use your own local copy through the wizard.
 
@@ -13,7 +13,7 @@ bun install --frozen-lockfile
 bun dev
 ```
 
-Bun builds the TypeScript browser modules, opens the local wizard and reuses an
+Bun bundles React locally and builds the TypeScript browser modules, opens the local wizard and reuses an
 existing `.data/` library. Keep the terminal open; Ctrl+C stops the server.
 `bun dev --no-browser` prints the URL without opening a browser.
 
@@ -25,7 +25,7 @@ The HTTP server is Bun; .NET is used only by the helper during import.
 
 ## Layout
 
-- `web/client/`: TypeScript renderer, audio worklet, menu, wizard HTML and tests.
+- `web/client/`: React wizard/settings, TypeScript renderer/audio, native menu and tests.
 - `web/server/`: Bun HTTP server, range streaming and PKG import.
 - `web/wasm/src/`: C/C++ bridges to the native engine in `src/`.
 - `web/client/dist/`: generated JS and WASM, ignored by Git.
@@ -47,9 +47,16 @@ parser/physics tests. To run the optional private integration suite:
 PT_TEST_PSARC=/path/to/chunk1.psarc PT_TEST_QAR=/path/to/texture.qar bun test --timeout 120000
 ```
 
-No test assets are checked in. The TypeScript baseline is permissive, with dynamic
-native/resource boundaries still explicitly typed `any`; strict typing is tracked
-in the [distribution and engineering plan](web/docs/DISTRIBUTION.md).
+No test assets or generated builds are checked in. `web/wasm/src/` is source only;
+`bun run build:wasm` is a separate native build step. `bun dev` tells you if it is missing.
+
+`bun run typecheck` checks the complete project and a strict subset with
+`noUncheckedIndexedAccess`: React components, options parsing, HTTP range transport,
+GPU allocation tracking and stage lifecycle. Those modules contain no explicit `any`.
+The renderer/WASM bridge remains permissively typed; full strict coverage is unfinished.
+React owns wizard and web-setting state. The original game menu keeps its native
+canvas renderer (including the puzzle), with an imperative adapter at that boundary.
+Browser DOM types are still needed for canvas/input/browser APIs, not as a UI framework.
 
 ## Current gameplay
 

@@ -1,14 +1,20 @@
 // Counts explicit GPU allocations and destroy calls, not driver-resident VRAM.
 // Keep the native GPUDevice identity for GPUCanvasContext.configure.
-export function trackGpu(device: any){
- const live=new Map();let created=0,destroyed=0;
- device.resourceSnapshot=()=>({created,destroyed,live:live.size,buffers:[...live.values()].filter((x: any)=>x==='buffer').length,textures:[...live.values()].filter((x: any)=>x==='texture').length});
- for(const key of ['createBuffer','createTexture']){
-  const create=device[key].bind(device);
-  device[key]=(descriptor: any)=>{
-   const resource=create(descriptor),destroy=resource.destroy.bind(resource);let disposed=false;
-   live.set(resource,key==='createBuffer'?'buffer':'texture');created++;
-   resource.destroy=()=>{if(disposed)return;disposed=true;destroy();live.delete(resource);destroyed++;};return resource;
-  };
- }return device;
+interface Destroyable {destroy():void;}
+interface AllocationHost {
+ createBuffer(descriptor:GPUBufferDescriptor):Destroyable;
+ createTexture(descriptor:GPUTextureDescriptor):Destroyable;
+}
+export interface ResourceSnapshot {created:number;destroyed:number;live:number;buffers:number;textures:number;}
+export function trackGpu<D extends AllocationHost>(device:D):D & {resourceSnapshot():ResourceSnapshot}{
+ const live=new Map<Destroyable,'buffer'|'texture'>();let created=0,destroyed=0;
+ function track<T extends Destroyable>(resource:T,kind:'buffer'|'texture'):T{
+  const destroy=resource.destroy.bind(resource);let disposed=false;
+  live.set(resource,kind);created++;
+  resource.destroy=()=>{if(disposed)return;disposed=true;destroy();live.delete(resource);destroyed++;};return resource;
+ }
+ const buffer=device.createBuffer.bind(device),texture=device.createTexture.bind(device);
+ device.createBuffer=descriptor=>track(buffer(descriptor),'buffer');
+ device.createTexture=descriptor=>track(texture(descriptor),'texture');
+ return Object.assign(device,{resourceSnapshot:():ResourceSnapshot=>({created,destroyed,live:live.size,buffers:[...live.values()].filter(x=>x==='buffer').length,textures:[...live.values()].filter(x=>x==='texture').length})});
 }
