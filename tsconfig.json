@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["bun", "@webgpu/types"],
+    "noEmit": true, "skipLibCheck": true, "strict": false,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["web/**/*.ts"], "exclude": ["web/client/dist", "node_modules"]
+}

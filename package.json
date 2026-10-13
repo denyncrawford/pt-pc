@@ -4,8 +4,16 @@
   "type": "module",
   "packageManager": "bun@1.4.3",
   "scripts": {
-    "dev": "bun server/dev.ts",
-    "test": "bun test server/*.test.ts web/tests",
-    "build:wasm": "bash web/build.sh"
+    "dev": "bun web/server/dev.ts",
+    "test": "bun test web/server/*.test.ts web/client/tests",
+    "build:wasm": "bash web/build.sh",
+    "build": "bun web/web-build.ts",
+    "typecheck": "tsc --noEmit",
+    "audit:publication": "python3 tools/web/audit-publication.py"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "@webgpu/types": "^0.1.74",
+    "typescript": "5.9.3"
   }
 }
