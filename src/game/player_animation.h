@@ -144,6 +144,8 @@ private:
 };
 
 bool LoadPlayerAnimation(Vfs& vfs);
+// In-memory entry point for hosts that supply bounded, already decoded asset bytes.
+bool LoadPlayerAnimationBytes(std::span<const uint8_t> rig, std::span<const uint8_t> skeleton, std::vector<uint8_t> motions);
 const PlayerLocomotion& PlayerLocomotionData();
 int WalkDirection(float heading_delta);
 bool LastFootLeft(bool fallback);

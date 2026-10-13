@@ -11,6 +11,10 @@ namespace pt {
 // thread. The split depends only on count and the chunk count, so work that writes each chunk's own output is deterministic.
 template <typename Fn>
 void ParallelChunks(size_t count, size_t chunks, Fn&& fn) {
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+    fn(size_t{0}, size_t{0}, count);
+    return;
+#endif
     chunks = std::max<size_t>(1, std::min(chunks, count));
     if (chunks <= 1) {
         fn(size_t{0}, size_t{0}, count);

@@ -138,15 +138,13 @@ void ForEachEvent(const std::vector<Event>& events, float from, float to, float 
     }
 }
 
-bool LoadRig(Vfs& vfs) {
-    auto rig_bytes = vfs.ReadFile(kRigFile);
-    auto fmdl_bytes = vfs.ReadFile(kSkeletonFile);
+bool LoadRig(std::span<const uint8_t> rig_bytes, std::span<const uint8_t> fmdl_bytes) {
     std::string error;
-    if (!rig_bytes || !g_rig.Parse(*rig_bytes, &error) || !g_rig.Evaluable()) {
+    if (rig_bytes.empty() || !g_rig.Parse(rig_bytes, &error) || !g_rig.Evaluable()) {
         LogWarn("player anim: rig {} unusable {}", kRigFile, error);
         return false;
     }
-    if (!fmdl_bytes || !anim::ReadFmdlSkeleton(*fmdl_bytes, g_skeleton) || g_skeleton.Empty()) {
+    if (fmdl_bytes.empty() || !anim::ReadFmdlSkeleton(fmdl_bytes, g_skeleton) || g_skeleton.Empty()) {
         LogWarn("player anim: {} has no skeleton", kSkeletonFile);
         return false;
     }
@@ -185,13 +183,21 @@ const PlayerLocomotion& PlayerLocomotionData() {
 }
 
 bool LoadPlayerAnimation(Vfs& vfs) {
-    g_locomotion = PlayerLocomotion{};
-    g_rig_ready = LoadRig(vfs);
+    auto rig = vfs.ReadFile(kRigFile);
+    auto skeleton = vfs.ReadFile(kSkeletonFile);
     vfs.LoadPackage(kMotionPackage);
-    auto bytes = vfs.ReadFile(kMotionArchive);
+    auto motions = vfs.ReadFile(kMotionArchive);
+    return LoadPlayerAnimationBytes(rig ? std::span<const uint8_t>(*rig) : std::span<const uint8_t>(),
+                                   skeleton ? std::span<const uint8_t>(*skeleton) : std::span<const uint8_t>(),
+                                   motions ? std::move(*motions) : std::vector<uint8_t>());
+}
+
+bool LoadPlayerAnimationBytes(std::span<const uint8_t> rig, std::span<const uint8_t> skeleton, std::vector<uint8_t> motions) {
+    g_locomotion = PlayerLocomotion{};
+    g_rig_ready = LoadRig(rig, skeleton);
     std::string error;
     g_archive = anim::MotionArchive{};
-    if (!bytes || !g_archive.Parse(std::move(*bytes), &error)) {
+    if (!g_archive.Parse(std::move(motions), &error)) {
         LogWarn("player anim: {} unreadable {}", kMotionArchive, error);
         return false;
     }

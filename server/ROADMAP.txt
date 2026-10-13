@@ -1,0 +1,1033 @@
+2026-10-14 — ARRASTRE DE BRILLO Y ESTADO PHOTOOPTION
+VERIFICADA: interacción del brillo con pointer capture, arrastre fuera de la
+barra y límites 0..10. Área calculada desde el nodo 40 y las coordenadas de
+OptionsMenu::OriginalClick. No reinicia idioma/cámara ni repite sonidos si
+el nivel no cambia. Conserva los once niveles nativos.
+VERIFICADA (estado y recorrido automatizado): PhotoWord en WASM, PhotoPrepare, activación por etapa y bit
+0x100 de PhotoOption. Reglas trazadas a nazo.cpp y floor_level.cpp.
+El zoom completo seguido de soltar Z/botón derecho recoge una sola vez,
+sólo con Photo activo. Una pulsación corta espera el final de zoom_in.
+Cerrar el menú cancela la intención. FrameOption y sus colisiones se
+actualizan por el mismo host; la calibración usa las texturas limpias del
+nodo 69 al estar recogido. Estado conservado entre vueltas de la sesión;
+reiniciar partida lo borra. No se añade guardado persistente en esta entrega.
+La conexión consulta el WASM/host actuales también después de la intro.
+Suite final: 102 pruebas / 0 fallos, 43 archivos, 87.48 s. Tres recorridos
+f010 → f005 → f020 → f030 conservan el fragmento. Compilación WASM y bundle
+de 21 módulos correctos. Recogida manual en f020 aún no verificada en IAB.
+EVIDENCIA: web/tests/menu-photo.test.js, prueba de recorrido third-loop.test.js,
+work/menu-photo-suite.log; arrastre mínimo/máximo/fuera de barra en IAB,
+consola sin errores; outputs/menu-slider-arrastre.png.
+PENDIENTE: efecto subliminal y cue 0xE4B855B2 de la recogida; recogida por
+mirada de los otros cinco fragmentos; finalización completa de Photo y
+progresión posterior a f030. No se declara completo el puzzle ni otra vuelta.
+Siguiente acción: integrar respuesta audiovisual original de PhotoOption y
+los cinco objetivos del pasillo con sus tiempos/distancias nativos.
+Bun dev y wizard conservados. Historial de entregas anteriores debajo.
+
+2026-10-14 — OPCIONES ahora usa UIF/UILB/UIA/FFNT/LNG originales del PKG,
+parsers nativos compilados a WASM y renderer WebGPU; configuración web aparte.
+Calibración, selección, cámara, zoom UIA y cues de menú integrados.
+PhotoOption/recogida compartida con Nazo continúa PENDIENTE.
+Detalle y evidencia: outputs/roadmap-implementacion.txt, work/native-ui-suite.log.
+
+UI ORIGINAL + AJUSTES WEB — EN CURSO — 2026-10-14
+Auditoría del port: OptionsMenu carga UI_sys_option.uif y .uilb, deriva nodos
+para ampliar idiomas y enlaza PcSettings. Usa UIA para zoom/transiciones.
+La versión web ahora separa OPCIONES (brillo, subtítulos, cámara) de
+CONFIGURACIÓN WEB (pantalla, gráficos implementados, sonido, sensibilidad,
+reinicio y captura). Mantiene IDs y conexiones existentes; Esc regresa al
+nivel superior antes de volver al juego. Créditos by denyncrawford and
+LoreanXavier. No se muestran DLSS, frame generation, micrófono ni mando.
+VERIFICADO: navegación, Esc y ajuste conservado entre pantallas en IAB.
+96 pruebas / 0 fallos, work/menu-structure-suite.log (87.92 s).
+Captura: outputs/configuracion-web.png. bun dev y wizard conservados.
+PENDIENTE PARA UI ORIGINAL COMPLETA: lector/render UIF/UILB/UIA; recursos de
+calibración izquierda/derecha y zoom; sonidos originales del menú;
+PhotoOption y su estado compartido con recogida. El espacio de calibración
+permanece vacío: no se añadió una imagen ficticia ni un fragmento falso.
+La interfaz actual conserva la estructura pero usa controles HTML; no se
+considera finalizada la petición de fidelidad de UI ni el puzzle del menú.
+Siguiente acción: exponer nodos 61/69/72 y materiales del UIF, resolver sus
+texturas desde biblioteca y conectar UI_sys_opt_zoom_in/out a PhotoOption.
+
+INTERACCIONES Y SALIDA — AUDITORÍA 2026-10-14
+VERIFICACIÓN: 96 pruebas, 0 fallos, 41 archivos (72.33 s).
+Log: work/interactions-review-suite.log. Bundle navegador: 19 módulos.
+IMPLEMENTADO: la salida gc_p00_010 vuelve a consultar condiciones si entró
+mientras quedaba un evento pendiente. Conserva los requisitos de f005/f020;
+no exige salir y volver a entrar al trigger. Prueba: bloqueo temporal y
+resolución mientras el jugador sigue frente a la puerta, en tres ciclos.
+IMPLEMENTADO: zoom normal de cámara con botón derecho (mantener), factor
+focal 1.35 y curva de Player::UpdateZoom. Se libera con el botón, pérdida
+de captura y pausa; se reinicia en transiciones. No activa puzzles aún.
+
+PRÓXIMA ENTREGA — INTERACCIONES ORIGINALES, NO MARCADA COMO COMPLETA
+1. PENDIENTE: portar TrapSystem::ExecNazo/TargetInView al puente WASM:
+   localizadores, área proyectada, botón y fases Enter/Inside/Out. El puente
+   actual filtra los traps Nazo y rechaza Zoom en checks de demos.
+2. PENDIENTE: estado Photo compartido entre etapas. f005 prepara word=2:
+   FrameGround visible y fragmentos ocultos; f020 activa la búsqueda.
+   Aplicar PhotoLisa/Tree/Gap/Bath/Stair, Frame* y máscara de recogida.
+   NazoManager::Arm/Update/Commit exige mantener zoom más de 2 segundos;
+   soltar cancela. Conectar sonido, efecto subliminal y textos originales.
+3. PENDIENTE: menú original de opciones/calibración. PhotoOption no es un
+   botón: está integrado en las texturas de cerebro (color y glow); requiere
+   UI_sys_opt_zoom_in/out, recordar pulsación/soltado y bit 0x100.
+   El menú web actual sigue siendo una adaptación, sin ese fragmento.
+4. PENDIENTE: gc_p01_021 + gc_p01_010 y Zoom del baño para f030 → f040.
+5. PENDIENTE: persistencia de fragmentos, reinicio y pruebas de cancelación,
+   duplicados, transferencia y recogida del fragmento del menú.
+
+La puerta descrita por el usuario aún necesita confirmación en partida:
+se corrigió un fallo reproducible de reintento, no se omiten requisitos.
+Evidencia de auditoría: src/game/trap_system.cpp (ExecNazo), nazo.cpp/h,
+src/game/ui/options_menu.cpp (PhotoOption), web/src/runtime.cpp (events_tick).
+
+PUERTA f005 — CORREGIDA Y VERIFICADA EN WASM — 2026-10-14
+Esta entrega sustituye el diagnóstico provisional de puertas que sigue debajo.
+VERIFICADA: el trigger 5_trap_change_static_model está en el primer tramo
+(x=0.012, z=2.048). Al regresar tras activar cucarachas habilita la hoja
+abierta y desactiva la cerrada con trapEnableStaticModel.lua. No requiere
+inventar una apertura al terminar los golpes ni una animación nueva.
+VERIFICADA: colisiones originales door004/005/007 registradas. La puerta
+cerrada frena al jugador; su variante abierta permite pasar. Resuelto el
+atasco al acumular los movimientos para el controlador a 29.97 Hz como
+Player::UpdateBody, conservando el radio original. Cámara interpolada.
+VERIFICADA: 95 pruebas, 0 fallos, 40 archivos (85.79 s).
+Evidencia: work/door-native-suite-final.log y outputs/puerta-f005-validacion.txt.
+Dos recorridos de tres ciclos prueban el retorno original de f005; ya no
+atraviesan la puerta cerrada. Entradas a 60/120/300 Hz pasan la puerta abierta.
+Wizard → Comenzar carga sin errores de consola. bun dev se conserva.
+PENDIENTE: validación manual en navegador con Pointer Lock y comparación
+nativa audiovisual; el IAB no soporta esa captura para caminar manualmente.
+SIGUIENTE: f030, Zoom/gc_p01_021 y reapertura gc_p01_010 para avanzar a f040.
+No se declara el juego completo ni la fidelidad audiovisual exacta.
+
+HISTORIAL — DIAGNÓSTICO PREVIO, SUPERADO POR LA ENTREGA ANTERIOR
+REVISIÓN DE PUERTAS — 2026-10-14 — CORRIGE LA VALIDACIÓN ANTERIOR
+Hallazgo verificado: runtime.js excluye door004 (vestíbulo), door007
+(baño entreabierto) y door005 del conjunto de colisiones. Los scripts
+GeomActive no pueden bloquear esos modelos aunque estén cerrados.
+trapSetupDoorModel.lua del PKG pone lobby_close=true en f005. La prueba
+anterior atravesaba esa puerta: pasar f005/f020 en ese recorrido NO certifica
+la progresión nativa ni todas las condiciones de salida.
+
+Experimento: cargar esas GEOM bloquea correctamente la puerta cerrada, pero
+rompe la salida de f005; no se ha identificado/portado aún su reapertura.
+La hoja abierta door004 también impide atravesar el hueco con el controlador
+actual; requiere comparar geometría/controlador nativos. Se revirtió el
+experimento para conservar el recorrido provisional existente.
+Evidencia: work/door-state-audit.log, work/door-state-fixed.log,
+work/door-script.txt, work/door-loop-debug.log, work/door-fix-tests.log.
+
+VERIFICACIÓN: 94 pruebas de regresión pasan, 0 fallos (53.02 s),
+work/doors-final-suite.log. No subsanan la carencia de colisión descrita.
+Menú probado en navegador: ocultar conserva pausa; Esc reabre.
+
+IMPLEMENTADO: botón Ocultar menú para captura. Conserva la pausa; Esc vuelve
+al menú. No altera audio, secuencias ni estado de las puertas.
+PRIORIDAD 1: resolver la reapertura de f005 y probar puerta cerrada/abierta
+con colisiones originales; revisar la variante door007 del baño.
+PRIORIDAD 2: Zoom + gc_p01_021 + gc_p01_010 para f030 → f040.
+No declarar completa ninguna vuelta apoyándose en el recorrido que atraviesa
+la puerta cerrada. Pruebas actuales: regresión del prototipo, no aceptación nativa.
+
+ACTUALIZACIÓN — PRIORIDAD PROGRESIÓN / f030 PARCIAL — 2026-10-14
+VERIFICADA: reparación del arranque lamp.js, HTTP 200 y wizard → Comenzar.
+IMPLEMENTADA: continuidad dentro de f030; cierre del vestíbulo, apertura del
+baño y cucarachas originales. Sin pausa terminal al entrar a f030.
+IMPLEMENTADA: consultas y órdenes BGM de Lua, enlazadas al mezclador original.
+VERIFICADA: 94 pruebas, 0 fallos, 39 archivos (55.57 s), work/f030-suite.log.
+Recorrido WASM con colisiones repetido tres veces hasta los eventos iniciales
+de f030; sin crecimiento de asignaciones nativas vivas. No es prueba GPU/audio.
+25 recursos del servidor comprobados por HTTP, incluido lamp.js.
+PENDIENTE PRIORITARIO: Zoom + gc_p01_021 + mensaje gc_p01_010; verificar f030 → f040.
+La salida f030 sigue protegida: esta entrega NO certifica f030 completa.
+Los 13 VFX visuales y la comparación nativa quedan separados del avance de etapas.
+Resumen compacto: outputs/estado-implementacion.txt.
+
+ACTUALIZACIÓN VIGENTE — REPRODUCTOR SONORO DE LÁMPARA INTEGRADO — 2026-10-14
+
+VERIFICADA EN PRUEBAS / INTEGRADA EN LA PARTIDA:
+- prepareLamp se prepara con la sesión, se actualiza en el frame activo y se
+  destruye con la sesión o candidato cancelado. Mantiene bun dev y el wizard.
+- Resuelve CeilLamp/CeilLampStrong desde ShGimmickSetUp.lua y lee el MTAR original.
+  Muestrea GANI no-rig con el mismo procedimiento de GimmickAnimation; usa el
+  esqueleto lte0_main0_def y el locator ShGimmick/CeilLamp del FOX2.
+- El reloj usa tiempo activo de audio a 59,94006 fps. Cada cruce de evento se
+  emite una sola vez, en orden; no reinicia el ciclo normal entre f010/f005/f020.
+- Los sonidos salen por ID original, en la posición del hueso 5303954988888
+  evaluada para el frame del evento y con los envíos acústicos de esa posición.
+  Los cuatro IDs producen PCM espacial en el mezclador real.
+- Pausa/ocultar pestaña suspenden el reloj sin ráfaga de eventos al volver.
+  Desactivar o descargar retira los emisores; las voces transitorias se recogen
+  al terminar. Prueba de 300 disparos sin emisores acumulados.
+- Selector normal/fuerte respeta estados de FloorLevel; probar el clip fuerte
+  no añade f100/f110 al recorrido jugable.
+
+ALCANCE:
+- El chirrido ya tiene un reproductor conectado, no sólo un diagnóstico.
+- Muestreo de pose y hueso sonoro implementado. La aplicación de esta pose a la
+  malla visible y sus luces/VFX todavía no está conectada: no se declara cerrada
+  la sincronización visual completa de la lámpara ni los 13 materiales VFX.
+- Validación de esta entrega: código + recursos originales + PCM. La escucha y
+  comparación manual del recorrido en navegador compatible siguen pendientes.
+
+EVIDENCIA:
+- work/lamp-integrated-suite.log: 92 pass, 0 fail, 37 archivos, 42,38 s.
+- Dos ciclos normales completos y uno fuerte, pausa, transición, desactivación,
+  huesos finitos, PCM de los cuatro sonidos y liberación de voces verificados.
+- WASM recompilado; bundle navegador (19 módulos) validado; fuentes/dist iguales.
+
+SIGUIENTE ENTREGA: conectar Quad/Draw de los 13 VFX al frame WebGPU con materiales
+originales; enlazar la pose visible y luces de CeilLamp al mismo reloj. Después,
+comparación audiovisual de f020 y continuación de eventos f030. No amplía aquí
+el límite jugable más allá del destino f030 ya existente.
+
+ACTUALIZACIÓN VIGENTE — AMBIENTES, GOTEO Y NÚCLEO VFX — 2026-10-13
+
+VERIFICADA — causa del goteo y conexión de ambientes de zona:
+- Faltaba GameSound::UpdateAreas: la web enviaba reverberación pero no ambientEvent.
+- SoundAreaGroup/Parameter/Edge y SoundAreaGlobal se leen del FOX2 original.
+  Selección por cámara, prioridad original, volumen por objeto y transición
+  1000/(fadeTime+1); no se reinicia el ambiente en cada fotograma.
+- Play_bg_bathroom01 cambia el RTPC global 2556335218 que silencia las gotas.
+  Ensayo aislado: sin contexto 0; tras ambiente del baño y deteniendo su propia
+  voz para aislar la gota, energía PCM 0,1761848. No se añadió gain ni otro audio.
+- Ambientación integrada también durante secuencias. Precarga y pausa no postean;
+  los objetos salientes se liberan al acabar el fundido. Bun dev y wizard intactos.
+- Falta comparación auditiva espacial en navegador; no equivale a fidelidad cerrada.
+
+EN CURSO — 13 efectos visuales:
+- Compilador, evaluador y simulador originales vfx_effect/system/lensflare compilados
+  a WASM, con puente web/src/effects.cpp y preparación web/effects.js.
+- Los 13 recursos producen 27 formas y dos definiciones lens flare; cero nodos
+  desconocidos para el compilador. Se resuelve el modelo 0x2c13dbeb0d12 (153
+  vértices, 208 triángulos) y ambos .vfxlf desde la biblioteca.
+- Tres ciclos de preparación/simulación/liberación con semilla fija: resultados
+  repetibles, geometría finita, cero instancias/partículas al liberar y cachés
+  de texturas vacías. Es simulación WASM, NO tres ciclos GPU/audio.
+- NO se consideran dibujados: el puente está preparado y probado, pero no está
+  conectado al frame WebGPU. Próximo paso: buffers Quad/Draw de 304 bytes,
+  texturas originales, mezcla por material, profundidad y refracción de líquidos,
+  iluminación de partículas y oclusión de flares. No usar bloom como sustituto.
+
+VERIFICADA — causa del chirrido ausente; INTEGRACIÓN PENDIENTE:
+- La lámpara colgante ShGimmick/CeilLamp tiene eventos GANI propios; no son los
+  zumbidos Play_sfx_passage_light_hum_04/08 (éstos ya producen PCM).
+- ShGimmickSetUp.lua original resuelve lte0_m00_010.gani (1119 frames, loop,
+  59,9401 fps): eventos a 6,174,314,446,579,723,864,1002.
+  IDs 3728713853 / 3728713854, modo 6, hueso 5303954988888.
+- CeilLampStrong resuelve lte0_m00_020.gani (440 frames, loop): 2,120,240,335;
+  IDs 1393560187 / 1393560184. Los cuatro IDs existen y sus mezclas son audibles.
+- Falta reproductor GANI del gimmick y emisión ligada al hueso, al reloj de
+  animación y al estado enabled de cada vuelta. No se insertó un loop aproximado.
+  Siguiente entrega: integrar ese reproductor y probar pausa, fin de vuelta y retiro.
+
+PRUEBAS:
+- 90 pass / 0 fail, 36 archivos, 49,22 s; work/fx-ambience-suite.log.
+- Incluye la ruta f010 → f005 → f020 → f030 anterior, audio original, zonas,
+  simulación VFX en tres ciclos y extracción de cues de lámpara.
+- WASM recompilado; bundle navegador validado.
+- Computer Use: biblioteca → carga → Comenzar verificado, sin errores de consola.
+  outputs/fx-ambience-carga.png. No se repite la captura del ratón que falla en IAB;
+  recorrido y comparación audiovisual manual siguen pendientes en navegador compatible.
+- No amplía la progresión: f030 continúa como destino terminal, no vuelta completa.
+
+ACTUALIZACIÓN VIGENTE — RECORRIDO f020 → f030 — 2026-10-13
+IMPLEMENTADO Y VERIFICADO EN PRUEBAS CON RECURSOS LOCALES:
+- El ciclo ya continúa en f020 después de f005. El destino se prepara desde
+  _script_next_floor; f030 es el destino original observado, no una ruta forzada.
+- Salida bloqueada hasta completar gc_p01_081 y resolver comandos pendientes.
+- Recorrido original de ida/vuelta activa gc_p04_340, baño, golpes del lobby y
+  Play_voice_ene_cry_f020; integra la lectura de visibilidad de los locators.
+- Transferencia válida retira las cucarachas de f020 sin emitir un Skip de juego
+  inventado. f030 es por ahora destino terminal: sus eventos no se ejecutan.
+- UI informa el nuevo límite y mantiene bun dev, wizard y controles existentes.
+- Suite integrada: 87 pruebas / 0 fallos, 33 archivos, 47,02 s. Tres recorridos
+  de f010/f005/f020 hasta f030 con liberación nativa sin crecimiento en vivo.
+  Son ciclos headless; no equivalen a tres ciclos GPU/audio en navegador.
+  Evidencia: work/f020-integrated-suite.log. Bundle validado.
+
+GOTEO — DIAGNÓSTICO ACOTADO, NO CORREGIDO:
+- Play_sfx_water_drop_b referencia cinco fuentes PCM originales disponibles.
+- Lectura directa de las fuentes da energía no nula (aprox. primer segundo):
+  88,1153; 38,7663; 49,4493; 34,2897; 44,3352. No faltan ni son silenciosas.
+- La mezcla aislada de 10 s sigue en cero. Investigar recorrido de eventos,
+  propiedades heredadas, buses/RTPC, posicionamiento y atenuación. No añadir gain.
+- Diagnóstico de sólo lectura audio_event_sources añadido; verifica fuente,
+  plugin y presencia de medio con lectura acotada. Audio recompilado y sus seis
+  pruebas repetidas tras añadirlo: 0 fallos. work/water-source-audit.log.
+
+VISUALES — PENDIENTES, INVENTARIO CONCRETO:
+outputs/fx-visuales-inventario.txt enumera las 13 rutas y tipos de nodos.
+Portar emisión/vida/formas/materiales y lens flares desde el renderer nativo;
+esta entrega no implementa esos componentes ni declara fidelidad visual cerrada.
+
+COMPUTER USE — ACTUALIZACIÓN 2026-10-13:
+- Acceso habilitado y comprobado con el servidor local activo en puerto 3000.
+- Bloqueo obsoleto del PID 34852 (ESRCH) preservado en work; biblioteca intacta.
+- Wizard → Jugar → progreso de carga → Comenzar verificado mediante UI real.
+- Comenzar vuelve a pausa: el navegador integrado no puede capturar el ratón.
+  No se declara validado el recorrido manual ni los tres ciclos GPU/audio.
+- Evidencia: outputs/computer-use-carga.png. Comparación visual pendiente.
+- Siguiente acción de QA: probar captura y recorrido en Chrome/Edge compatible.
+
+SIGUIENTE: resolver la mezcla del goteo y portar los grupos visuales inventariados;
+después implementar eventos de f030/f040. La progresión completa hasta ending
+sigue abierta. f020 tiene recorrido probado, no aceptación audiovisual final.
+
+ACTUALIZACIÓN VIGENTE — AUDIO DE FxLocator — 2026-10-13
+IMPLEMENTADO: recursos originales de locator → estado FOX2/Lua → AudioWorklet.
+VERIFICACIÓN: 86 pruebas / 0 fallos, 32 archivos, 36,48 s; ambos núcleos
+compilados y bundle de navegador validado.
+- El puente WASM expone vfxFile, posición/orientación y visible && enable.
+  Flags iniciales y cambios Visible/Invisible se leen del estado de la escena.
+- Preparación resuelve nodos mediante el parser nativo; no reproduce durante
+  precarga. Al activarse publica una vez, no cada frame. Pausa congela cambios;
+  ocultar/descargar libera los sonidos. Orientación y envíos acústicos originales.
+- Stop respeta stopPlaying frente a evento stop, fade y curva del nodo.
+  El worklet conserva posición al enviar stop. Para water_drop_b se porta la
+  repetición nativa tras terminar, con espera aleatoria 0,8–1,8 s entre repeticiones.
+- f020: condition_enable_vfx_sd activa Play_sfx_head_struck_01; FinishMotion de
+  gc_p01_081 activa Play_voice_ene_cry_f020 mediante su script original.
+- PCM finito y no silencioso verificado: wall_light_hum_01, passage_light_hum_04,
+  passage_light_hum_08, head_struck_01 y voice_ene_cry_f020. Recursos locales.
+- La intro prepara sus locators sin reproducir desde la sesión precargada.
+- bun dev y wizard conservados; no se amplía todavía la progresión de f020.
+
+PENDIENTES EXPLÍCITOS:
+- 13 rutas tienen nodos visuales: esta entrega conecta su sonido cuando existe,
+  pero no implementa todos sus componentes visuales. Lista disponible como
+  LocatorSounds.unresolved. No se equipara audio resuelto con efecto completo.
+- Play_sfx_water_drop_b se resuelve pero produce PCM cero en prueba aislada de
+  10 s. Investigar switches/RTPC/mezcla; no se sustituye ni amplifica.
+- Escucha comparada en navegador y recorrido integral f020 con puerta/colisiones,
+  condiciones y salida original. Permanecen los demás hitos hasta ending.
+
+FUENTES: Stage::Body y GameSound::UpdateVfxSounds/ReleaseVfxSound del renderer
+nativo; parser vfx::ReadSoundNode; FOX2 y VFX del PKG local.
+EVIDENCIA: work/fx-locator-build.log, work/fx-locator-audio-build.log,
+work/fx-locator-tests.log, work/fx-locator-full-suite.log.
+
+ACTUALIZACIÓN VIGENTE — DEPENDENCIAS DE f020 — 2026-10-13
+OBJETIVO: nueva partida → desenlace, con todos los eventos obligatorios.
+Esta entrega no declara el juego completo ni amplía aún el límite jugable.
+
+IMPLEMENTADO / VERIFICADO EN PRUEBAS:
+- Incorporadas al conjunto preparado del pasillo las secuencias originales
+  gc_p04_340 (dos cucarachas, 6198 frames) y gc_p01_081 (baño, 58 frames).
+- Pruebas de reproducción hasta terminar: deformación de modelos, geometría
+  finita, visibilidad, mensajes únicos FinishMotion/PlayEnd/Finish y liberación
+  de instancias. El baño ejecuta Play_sfx_door_struck_01 desde su nodo original.
+- Inventario FOX2 ampliado para incluir FxLocatorData: ahora aparecen los dos
+  recursos .vfx exigidos por los scripts f020, antes ausentes de la auditoría.
+- Suite integrada: 83 pruebas / 0 fallos, 30 archivos, 36,01 s con recursos
+  reales. WASM recompilado y bundle verificado. Evidencia:
+  work/f020-full-suite.log, work/f020-build.log. bun dev y wizard conservados.
+- Evidencia y contrato de cierre: outputs/f020-dependencias.txt.
+
+HALLAZGO QUE CORRIGE LA INTERPRETACIÓN DE ENTREGAS ANTERIORES:
+ScriptVisible guarda visibilidad de FxLocator, pero no existe aún consumidor
+completo de esos efectos. Afecta también a lámparas, flares y locators de audio
+comunes. Los tests de dos vueltas acreditan recorrido/eventos cubiertos, no
+que todos los efectos originales estén presentes. El hito de fidelidad sigue
+abierto. No se sustituye este trabajo por pistas o iluminación inventadas.
+
+SIGUIENTE ENTREGA OBLIGATORIA:
+1. Reproductor de FxLocator: resolver vfxFile/nodos, transformación, estado
+   inicial y cambios Visible/Invisible; arranque/parada, pausa y descarga.
+2. Cubrir primero locators comunes para preservar f010/f005; después golpes
+   de lobby y llanto del baño f020. Los efectos visuales requieren su consumidor.
+3. Integrar el recorrido f020 y su destino original, con pruebas de condiciones,
+   puerta/colisiones, mensajes y prohibición de saltar dependencias obligatorias.
+4. Continuar fases 5–11 del roadmap hasta TrueEnd y ending; el 100% exige un
+   recorrido integral y validación audiovisual, no sólo recursos cargados.
+
+ACTUALIZACIÓN VIGENTE — ACTIVACIÓN DE AUDIO ENTRE ESCENAS — 2026-10-13
+VERIFICADA EN PRUEBAS: preparación del audio de destino antes de retirar intro.
+- El destino se silencia de inmediato antes de resume/start. El audio actual
+  sigue activo mientras se espera la confirmación del nuevo procesador.
+- Se verifica generación/sesión antes de publicar. Cancelación pausa el
+  candidato; fallo conserva la escena actual; pausa durante arranque persiste.
+- Transferencia f000 → f010 instala el destino sin esperar AudioContext.close
+  anterior. La descarga de transferencia conserva inputActive/captura de mouse.
+  Listener y emisores se actualizan en coordenadas del destino al publicarlo.
+- El cierre antiguo no sobrescribe el diagnóstico de la nueva sesión activa.
+- 80 pruebas / 0 fallos, 29 archivos, 26,08 s, con archivos reales locales.
+  Incluye cuatro pruebas de activación diferida, cancelación, pausa y error.
+  Bundle browser compilado. Evidencia: work/audio-transfer-tests.log.
+- bun dev y wizard conservados. No se modifican pistas, bancos ni mezclas nativas.
+EN CURSO / LÍMITE: se elimina la espera de arranque entre contextos; no se ha
+verificado perceptualmente ausencia de corte. El contexto saliente aún se cierra
+al transferir: conservación de colas, mezcla entre escenas y escucha A/B quedan
+pendientes. No se declara cerrado el hito ni validación manual de GPU/audio.
+SIGUIENTE: comparar el cruce con audio, resolver colas conforme al nativo;
+después SoundAreaGroup/Edge y luces/efectos por vuelta. f020+ sigue pendiente.
+
+ACTUALIZACIÓN VIGENTE — TRANSICIONES DE CÁMARA — 2026-10-13
+ENTREGA VERIFICADA EN DATOS Y PRUEBAS; comparación visual manual pendiente.
+- El decodificador WASM conserva cameraInterpType/Frame/CurveRate/ScurveCenter
+  de DemoData. gc_p00_160 y gc_p00_010: tipo 2, 60 frames, rate 0,9, center 0,65.
+  gc_p00_022 y gc_p00_020 conservan tipo 0 (sin mezcla añadida).
+- Puertas de intro y primera vuelta: desplazamiento relativo al track móvil,
+  orientación por SlerpShortest y mezcla de distancia focal. Se preserva roll.
+  Procedencia: src/game/demo_system.cpp CameraCurve y UpdateCamera;
+  src/engine/anim/anim_codec.cpp SlerpKey (umbral 0,9995).
+- Entrega a locomoción: conserva posición de cámara estando quieto y libera
+  el offset con movimiento, en coordenadas del cuerpo, siguiendo HandCameraBack
+  y UpdateEye de src/game/player.cpp. Reset limpia el estado de entrega.
+- Pruebas con chunk1.psarc y texture.qar locales: 76 pass / 0 fail, 28 archivos,
+  27,22 s. Cubren curvas, giro por ruta corta, roll, focal, pausa, reinicio,
+  primer frame continuo y destino original de las puertas f000/f010.
+  Evidencia: work/camera-full-suite.log; work/camera-blend-build.log.
+- Núcleos WASM compilados y bundle de navegador validado. Wizard llega a
+  Comenzar sin errores registrados en el navegador integrado. bun dev y el
+  wizard se mantienen. No se cambian recursos originales por sustitutos.
+- PENDIENTE: cruce manual y tres ciclos GPU/audio con captura comparable.
+  El navegador integrado rechaza Pointer Lock; cargar hasta Comenzar no prueba
+  la suavidad del recorrido. No se declara cerrado el hito visual.
+- SIGUIENTE: evitar el corte de audio al descargar/activar la etapa;
+  después SoundAreaGroup/Edge y auditoría de iluminación por estado/etapa.
+  La progresión posterior a f020 sigue pendiente; no se omiten sus comandos.
+
+ACTUALIZACIÓN VIGENTE — AMBIENTES Y RECORRIDO HASTA EL FINAL — 2026-10-13
+Esta sección prevalece sobre los estados históricos que siguen. No se cierra
+el hito de fidelidad ni se declara jugable el juego completo.
+
+ENTREGA VERIFICADA EN DATOS Y PRUEBAS: SoundSource original → WASM → AudioWorklet.
+- Intro: LightHumSound0000 / Play_sfx_light_hum_01, alcance original 50 m.
+- Pasillo: RainfallSource0000 / Play_sfx_rainfall_01, alcance 22 m;
+  RainfallWindowSource0000/1/2 / Play_sfx_rainfall_window_01/02/03, 6 m.
+- Procedencia: FOX2 de start/hallway del chunk1.psarc local; eventos de los
+  bancos originales. No se agrega una pista sintética ni volumen arbitrario.
+- Posición más cercana sobre shapes, orientación del emisor, curva del banco,
+  salida con histéresis 1,05 y fade de 0,5 s: GameSound::UpdateEmitters.
+  Emisores separados de radio/pasos; actualización también durante cinemáticas.
+  La sesión precargada no reproduce. Pausa congela; al destruir sesión se
+  destruye su motor/contexto de audio. Los identificadores se reutilizan.
+- Corregido SoundPostEvent sin coordenadas: evento global, no objeto radio.
+- Corregida preparación de etapa: condition_Setup_Sound se ejecuta junto a
+  condition_Light cuando el port coloca al jugador después del trap de entrada.
+  También se ejecuta al transferir f010 → f005 → f020.
+- trapSetupSound.lua controla lluvia s_direct en f010/f005/f020/f030/f040/
+  f050/f060/f070/f120/f160; no_direct en f000/f080/f090/f100/f110.
+  Esto es evidencia del script, no promesa de que esas vueltas estén jugables.
+- Verificado: 72 tests / 0 fallos, 31,20 s, bancos y PKG reales; PCM finito y
+  no silencioso de los cinco eventos, parada tras fade, no reinicio del bucle
+  al actualizar, histéresis, precarga/pausa, configuración de lluvia durante
+  los tres recorridos headless de f010/f005. Compilación de ambos núcleos y bundle.
+  Evidencia: work/source-inventory.log, work/ambience-full-suite.log,
+  work/ambience-build.log, work/ambience-audio-build.log.
+- Navegador: wizard → carga → Comenzar, sin errores JS/GPU registrados.
+  El navegador integrado rechaza Pointer Lock; no se declara escucha A/B
+  ni recorrido manual verificado allí. Pendiente comparar volumen/timbre real.
+- El zumbido confirmado pertenece al fluorescente de la intro. Si el chirrido
+  referido es de otra lámpara del pasillo, queda por identificar; no confundirlo
+  con este evento sólo por la descripción del sonido.
+
+ROADMAP COMPLETO: ORDEN, ESTADOS Y CONDICIONES DE CIERRE
+Orden nativo (no numeración de capítulos):
+f000 → f010 → f005 → f020 → f030 → f040 → f060 → f050 → f070 →
+f080 → f090 → f100 → f110 → f120 → f160 → ending.
+
+1. EN CURSO — Consolidar intro y primeras dos vueltas.
+   Verificada en pruebas: interpolación nativa de cámara/focal en
+   gc_p00_160 y gc_p00_010 y entrega de posición a locomoción.
+   Arranque de audio antes de retirar la intro implementado; pruebas de pausa,
+   cancelación y fallo verificadas. Próximo: escucha del cruce, colas y
+   verificación manual de la transición.
+   Mantener puerta, colisiones y pausa sincronizadas.
+   Cierre: cruce manual sin salto, captura antes/después y tres repeticiones.
+2. EN CURSO — Sonido ambiental completo por etapa.
+   SoundSource verificado arriba. Pendientes: ambientEvent/ambientRtpcName/
+   ambientRtpcValue de SoundAreaGroup y fades de SoundAreaEdge; sonidos de
+   FxLocator, goteos y gimmicks; mezcla al solaparse etapas, descarga/fade y
+   propagación de la posición de objetos animados. Comparar lluvia junto a
+   cada ventana, esquina, escalera, intro y cada variante de floor.
+3. PENDIENTE — Auditoría de luces y efectos por vuelta y por evento.
+   Usar FloorSetup::light_row, tabla y Lua originales; registrar luces,
+   MirrorLight, lámpara/nevera, linterna, probes, exposición/LUT/bloom,
+   blur/distorsión/grano y audio antes/después de cada trigger.
+   No arreglar todas las vueltas con una exposición global. Comparación con
+   cámara/FOV/pose iguales en entrada, ventana, radio, baño, mueble y escalera.
+4. EN CURSO — f020/f030/f040: apariciones y baño.
+   Reproductores gc_p04_340 y gc_p01_081 preparados y probados. Pendientes:
+   FxLocator comunes y de f020, integración del recorrido, actor Ocho/Lisa,
+   mirada/zoom, bloqueo de puerta, entrada al baño, linterna, bebé/lavabo,
+   espejo, golpes/voces, apagados/encendidos y ataques/reinicio.
+   Pruebas positivas y de no activación al mirar desde un lugar incorrecto.
+5. PENDIENTE — f060/f050/f070: reinicio, retrato y ventana.
+   Preservar estado original al volver al cuarto, bolsa, selección de XMark
+   y sus cambios visuales, vidrio y golpes. NextFloor sólo avanza desde f050
+   con XMark resuelto; probar que repite la vuelta cuando falta.
+6. PENDIENTE — f080/f090: nevera, lámpara y letras.
+   Freezer/CeilLamp, sangre/goteo, oscilación, sombras móviles, focos rojos,
+   voces/bebé/radio; puzzle Hello y visibilidad de letras. NextFloor f090
+   condicionado a Hello. Tests nativos fridge.txt y f090.txt como referencia.
+7. PENDIENTE — f100/f110: corredor alterado y observación.
+   Velocidad/FOV/blur, repetición de escenario, cuadros, luz roja, mirilla,
+   cámara secundaria/overlay, audio del teatro y EndJack. Mantener y soltar
+   zoom debe reproducir también las rutas nativas de cancelación.
+8. PENDIENTE — f120: interferencia y falso fallo.
+   Portar gc_p02_080/070/100, imágenes y reinicio con temporización original:
+   1800/2700/3300, 3540, tramo 3600–5400, imagen 5401, Endf120 5875.
+   No cerrar por llegar al pasillo siguiente sin ejecutar estos eventos.
+9. PENDIENTE — f160: última vuelta y TrueEnd.
+   Reloj/medianoche, variaciones aleatorias de imágenes y sonidos, actor,
+   diez contactos de pasos y condición de voz nativa, espera/inmovilidad,
+   risas/marcadores, llamada, interacción con teléfono y salida autorizada.
+   UpdateTrueEnd: 10 pasos; después de ambas condiciones, 10 s de espera,
+   15 s inmóvil, 3 s hasta llamada. Verificar todos los estados y reinicios
+   fallidos; no convertir los tiempos del vídeo en reglas de motor.
+   Micrófono únicamente tras permiso; analizar alternativas del port y
+   distinguirlas del comportamiento PS4. Portar también fragmentos de foto
+   (incluida UI/opciones), guardado, recuperación y opciones necesarias.
+10. PENDIENTE — ending: salida y desenlace.
+    Preparar escenario/cinemática final, animación, cámara, voces/subtítulos,
+    títulos y fin de partida. Verificación desde TrueEnd, sin atajo al vídeo.
+11. PENDIENTE — Cierre integral y rendimiento.
+    Ruta nueva partida → ending; pausa/reinicio/carga fallida por fase;
+    tres ciclos GPU/audio reales con contadores, memoria, tiempos de carga y
+    p50/p95/p99. Comparación audiovisual sincronizada. Optimizar subidas,
+    compilación y caché sin ocultar assets. Hosting público es otro hito.
+
+REGLA DE ENTREGA
+Cada fase necesita evidencia del PKG/código, implementación, prueba de eventos
+obligatorios y transición real. Un comando desconocido bloquea su cierre.
+La referencia de YouTube es un muestreo visual hasta el desenlace, no una
+medición de audio ni prueba exhaustiva de todas las ramas. Ver informe ampliado
+outputs/referencia-gameplay-completo.txt. bun dev y wizard se conservan.
+
+--- HISTORIAL DE ENTREGAS (los estados de arriba son los vigentes) ---
+
+CONTROLES, AUDIO DEL DESPERTAR Y OPCIONES — 2026-10-13
+IMPLEMENTADO: Pointer Lock solicitado desde el gesto de Comenzar/Continuar antes
+ de esperar al arranque del audio. Esc, pérdida de captura y menús pausan/liberan
+ cámara; no hace falta mantener un botón. Si la captura es rechazada, alternativa
+ de movimiento libre dentro del canvas, cursor oculto y pausa al salir del canvas.
+VERIFICADO en navegador integrado: Comenzar, foco de canvas, pausa y alternativas.
+LIMITACIÓN: Pointer Lock fue rechazado con UnknownError en el integrado; captura
+ real del cursor aún pendiente de prueba en navegador externo compatible.
+VERIFICADO: WEM original incrustado en gc_p00_020.fsm, extraído con el parser
+ nativo y reproducido mediante kExternalSourceEvent en el mezclador WASM.
+ Se precarga al preparar la escena y arranca con gc_p00_020. Sin sonidos inventados.
+ Test de PCM confirma audio no silencioso y finito durante ocho segundos.
+ gc_p00_022 no contiene ese stream; no se le añade una pista sustitutiva.
+IMPLEMENTADO/VERIFICADO: brillo (11 valores de GameOptions::BrightnessValue,
+ corrección de gamma final), inversión horizontal y vertical, 7 idiomas originales
+ disponibles en esta biblioteca. Preferencias persistentes; selector no promete
+ idiomas ausentes. Cambio de idioma conserva el tiempo del marcador activo.
+ UI revisada con cambios Español/English y brillo, sin errores mostrados.
+Suite completa: 64 pasan / 0 fallan, 23,50 s; core de audio y bundle compilan.
+Evidencia: work/input-opening-options-suite.log, work/options-language-tests.log,
+ outputs/opciones-brillo-idiomas.png. bun dev y wizard se conservan.
+
+CONTINUIDAD INTRO → PASILLO — EN CURSO, NO CERRADA
+Auditoría original: f000 usa gc_p00_160 (228 frames), siguiente piso f010;
+ Play oculta la puerta estática abierta 20 grados. Sonidos en frames 1/39/110/170.
+ Falta preparar y dibujar start y hallway simultáneamente, ejecutar puerta/cámara
+ y transferir al finalizar. El controlador existente duplica una misma etapa;
+ no resuelve aún la unión de dos escenas distintas. No se añadió un teletransporte.
+Siguiente acción: unión de conectores entre etapas, recursos separados, secuencia
+ gc_p00_160, transferencia válida y liberación del origen con reintento de carga.
+Referencia: outputs/referencia-video-inicio.txt; subtítulos YouTube extraídos para
+ análisis. No se completó comparación audiovisual cuadro a cuadro. Iluminación
+ del extremo del pasillo y frecuencia de golpes siguen pendientes de comparación
+ con ajustes equivalentes (la referencia comenta Ultra y trazado de rayos).
+Calibración visual de brillo, micrófono/puzzles y resto de opciones nativas pendientes.
+
+INICIO: FRANJA NEGRA DURANTE EL DESPERTAR — 2026-10-13
+VERIFICADO: A/B en navegador: al desactivar Sombras desaparecía la franja
+ancha diagonal; era distinta de las bandas finas corregidas anteriormente.
+Corrección WebGPU: conservar el desplazamiento tangencial del receptor, pero
+limitar su componente hacia dentro del triángulo. La normal geométrica se obtiene
+antes de ramas/discard, en flujo uniforme; no usa el relieve de la textura.
+Esto evita autosombra cuando el viewBias original atraviesa la superficie con
+la cámara acostada. Es una adaptación de robustez, no una fórmula nativa portada.
+VERIFICADO: la habitación f000 conserva sus 6 luces y 2 sondas. Antes una regla
+de transición eliminaba la mitad como si fueran una segunda copia del pasillo.
+El pasillo declara ahora explícitamente sus cantidades base al duplicarse.
+Prueba GPU simulada: activar/desactivar/terminar transición conserva la habitación,
+retira solo los duplicados del pasillo y libera todas las asignaciones.
+Navegador: toma acostada sin franja, sombras activas, pausa/reanudar y cámara
+levantada revisadas. Captura: outputs/inicio-sin-franja-sombra.png.
+Una primera compilación WGSL rechazó derivadas en flujo no uniforme; se corrigió
+antes de verificar la versión final. No hubo nuevos errores en la ejecución final.
+Suite completa: 64 pasan / 0 fallan (26,16 s); bundle de navegador compila.
+Evidencia: work/opening-shadow-band-suite.log; web/tests/lighting-lifetime.test.js.
+PENDIENTE: comparación nativa controlada y salida f000 al pasillo, sin cambios.
+Se mantienen bun dev y wizard; no se cierra el hito global por esta corrección.
+
+
+INICIO: SUPERFICIES Y CUCARACHAS — 2026-10-13
+VERIFICADO: franjas aisladas como autosombreado mediante A/B Sombras on/off.
+Materiales originales sin cambios. Rasterizado de cubemaps forward-Z ahora usa
+depthBias=2 y depthBiasSlopeScale=2 para separar profundidad según pendiente.
+No sustituye los offsets originales por luz. Toma inicial observada sin franjas
+y con sombras activas. Comparación controlada de sombras de contacto pendiente.
+VERIFICADO: FOX2 ShGameControllerMessageScript_gc_p02_510 escucha
+PlayFirstOpeningDemo en f000, con centro LocatorStartPlayerPos. Se reproduce
+gc_p02_510 junto a gc_p00_022: dos actores coc0 originales, rig y movimiento
+originales; 1198 frames. No se reutilizó la trayectoria del pasillo.
+Browser: cucaracha visible caminando en primer plano, sin errores de consola.
+Tests: dos actores creados/visibles, deformación cambia entre frames, se retiran
+al final y se liberan instancias; pausa y control al terminar siguen pasando.
+Suite completa: 63 pasan / 0 fallan, work/opening-surface-roach-suite.log.
+LIMITACIÓN EXPLÍCITA: tres functores de gc_p02_510 (d9ff1d14f050,
+e9bab696f1fc, c42eda2a5fbd) quedan registrados como no resueltos. El renderer
+nativo consultado tampoco tiene consumidores para esos comandos (DemoSystem
+los conserva en screen.values); no se declara fidelidad completa ni f000 cerrado.
+Se mantienen pendientes audio externo, profundidad de campo y salida gc_p00_160.
+Evidencia: outputs/inicio-cucaracha-sombras.png; work/start-messages.log.
+
+ORIGINAL STARTING ROOM — 2026-10-13
+VERIFIED: default wizard entry loads pt14_start FOX2/FPK, 7 original static
+placements, 1672 collision triangles, 6 lights and 2 light probes. No mirror
+required in a room without one. Hallway checkpoint remains available through
+?dev=1&scene=hallway; normal entry now starts in f000.
+VERIFIED: gc_p00_022 (478 frames) awakening, OpenDoor20 at frame 400 starts
+gc_p01_100 concurrently; FinishMotion at frame 470 starts gc_p00_020 (868
+frames). Original camera quaternion including roll and focal track, animated
+player, native door animation and sound effect; hideOcho through original Lua;
+Finish invokes StartGame. Grounded player handoff into room; walking verified.
+VERIFIED: pause-aware scene clock, fatal unknown commands, instance cleanup.
+63 tests pass / 0 fail (work/opening-suite.log); WASM build and browser run
+without console errors. Original room shown and movement observed after intro.
+PENDING: external audio gc_p00_020.mas, depth-of-field response, exact native
+comparison, complete controller state callbacks and gc_p00_160 transfer from
+starting room to hallway. f000 is NOT declared complete. This is the opening
+presentation plus room movement, not a complete original new-game flow.
+NEXT: prepare connected hallway before gc_p00_160; animate its door and player,
+transfer collision/scene ownership only after a valid native sequence finish.
+Then integrate external opening audio and camera focus postprocessing.
+
+WIZARD Y PRESENTACIÓN DE JUEGO — 2026-10-13
+VERIFICADO: wizard negro centrado con crédito, sin explicación técnica. Modo
+juego por defecto; ?dev=1 conserva panel verde de desarrollo. Menú web propio,
+no menú nativo portado. Solo controles implementados visibles en modo juego.
+Carga: subida XHR con bytes reales; extracción indeterminada (sin porcentaje
+inventado); carga de partida con 7 etapas completadas, no estimación de tiempo.
+Importación enlaza automáticamente con carga; Comenzar activa audio/ratón.
+Verificado en navegador: biblioteca → carga (14% observado) → Comenzar → partida
+→ pausa → biblioteca, sin errores de consola. 62 pruebas pasan / 0 fallan
+(work/wizard-suite.log). No se repitió la subida del PKG completo esta entrega.
+Pendiente: medir progreso detallado del extractor e integrar despertar f000.
+P.T. WEB — HITO: MATERIALES ORIGINALES Y DOS VUELTAS JUGABLES
+Actualizado: 2026-10-13
+HITO ABIERTO. Entrada: bun dev → wizard → PKG/biblioteca → jugar.
+
+P.T. WEB — INICIO ORIGINAL Y MENÚ — 2026-10-13
+
+VERIFICADA: primera entrega de UI de pausa con dialog modal, captura de Esc,
+continuar, volumen mediante GainNode, subtítulos, sensibilidad, invertir Y,
+escala de render 100/75/50%, solicitud de pantalla completa, gráficos existentes,
+volver a biblioteca y reinicio de sesión con confirmación. El menú detiene el
+avance del ciclo/secuencias y el audio; al ocultar pestaña se abre la pausa.
+Preferencias de volumen, sensibilidad, inversión, subtítulos y escala se guardan
+localmente. El crédito solicitado aparece en wizard, cabecera y pausa:
+by denyncrawford and LoreanXavier
+
+VERIFICADA: inventario/decodificación de recursos originales del inicio.
+resident.fpk: gc_p00_020.fsm = 868 frames / 14.481 s / 5 actores / 29 eventos.
+Cámara demo_camera, parámetros CameraParam y cuerpo HM_plr0_main0_def presentes.
+Nueva prueba samplea cámara en frames 1/200/522/866 y libera la instancia.
+También inventariados gc_p00_160 (228 frames, salida inicial) y gc_p00_030
+(481 frames, recogida de linterna posterior; NO confundir con el despertar).
+Evidencia reproducible: outputs/inventario-inicio-original.json.
+
+PENDIENTE — EL DESPERTAR TODAVÍA NO ES JUGABLE: cargar estado f000 y enlazar
+GameController pasos 8–14. Requiere OnStartLogo, OnPreOpeningDemo,
+SetupOpeningOcho/SetupStartRoomDoor, PlayFirstOpeningDemo y StartGame.
+No basta con aplicar demo_camera a f010. El reproductor ambiente actual rechaza
+functores necesarios como TakePlayer 0x9fe662692727, FocusDistance
+0x7d2cda51f34a y FadeIn 0xfa384e14ab0e. Faltan mensajes/visibilidad como
+hideOcho en frame 522 y el origen/conectores del cuarto. No se omiten eventos
+para presentar un comienzo incompleto como original. La UI declara que comienza
+en f010. La petición de integrar la escena inicial NO se considera completada.
+
+PENDIENTE — OPCIONES COMPLETAS: mando, vibración, reasignación, inclinación,
+idioma, micrófono/prueba, extras y guardado. DLSS/generación/RT nativos no están
+disponibles en esta implementación; sincronización controlada por navegador.
+Los ajustes no implementados se indican; no hay controles que simulen aplicarlos.
+Gráficos conserva los controles previos; persistencia de esos cuatro toggles pendiente.
+
+PRUEBAS: 62 pasan / 0 fallan, work/menu-suite.log, 19.64 s. Bundle JS correcto.
+UI: abrir/cerrar pausa con Esc, reanudar audio, cancelar confirmación, cambiar
+volumen/sensibilidad, escala 75% (744×419 en viewport de prueba) y persistencia
+tras reload comprobadas. Fullscreen está conectado con error visible pero no se
+ha verificado soporte del navegador. Reinicio completo verificado: descarga, vuelve a cargar y conserva preferencias.
+
+SIGUIENTES ENTREGAS:
+1. Importación f000 y actor/puerta inicial, inventario de comandos requeridos.
+2. TakePlayer/cámara completa con roll, foco/fundido, hideOcho y StartGame.
+3. Audio/body sincronizados del despertar, salida gc_p00_160 → f010.
+4. Ampliar opciones y pruebas de pausa durante el despertar/transición.
+5. Retomar comparación visual nativa controlada. HITO ABIERTO.
+
+P.T. WEB — REFLEJOS DEL SUELO / SOMBRAS POR LUZ / RADIO — 2026-10-13
+Entrada conservada: bun dev → wizard → PKG/biblioteca → jugar.
+
+VERIFICADA (datos + implementación + GPU): light_data exporta 28 floats.
+shadowBias y viewBias se convierten de mm a m; LodShadowDrawRate, shadowUmbraAngle
+y shadowPenumbraAngle se leen del FOX2 con los defaults de render_scene.cpp.
+Spot: receptor desplazado por eje de cámara + eje de luz; punto: shadowBias con
+el signo de PointShadow. Cono de sombra cuadrático y mezcla por intensidad propia.
+Se elimina el offset normal fijo de 12 mm y el polygon offset adicional.
+Ejemplos originales ID60: bias -5 mm y viewBias -5 mm; reloj viewBias -2 mm.
+Las cinco luces activas con sombra importadas tienen LodShadowDrawRate=1.
+PENDIENTE: atlas spot/paraboloide nativo, LOD de sombras y comparación idéntica.
+La proyección WebGPU continúa siendo cubemap; portar valores no prueba paridad.
+
+VERIFICADA (implementación + GPU): SSR del suelo basado en reflect_make.frag y
+reflect_blend_main.glsl, marcha no temporal de 16 pasos y seis refinamientos,
+confianza por error/distancia, normal y rugosidad de materiales originales.
+REFLECT_MAP de game.cpp: scale=2, bias=0, edge=false para estas etapas.
+Nuevo MRT de normales/rugosidad, mapa de impactos y destino separado; no feedback
+entre lectura/escritura de una textura. Mezcla en espacio codificado con adaptación
+a nuestro HDR sin preexposición, antes de bloom/LUT. Se conserva el control Reflejos.
+La ventana se refleja visiblemente en el suelo y el reflejo se mantiene al caminar.
+PENDIENTE: matched-camera nativo; diferencias por forward depth, coordenadas
+subpíxel, resolución del mapa y fronteras/siluetas. Sin historial temporal ni RT.
+La sonda local aproximada permanece para iluminación de entorno/fuera de pantalla;
+no se afirma haber portado el atlas de reflexión del juego ni cerrado el hito.
+
+CORREGIDA: radio. HallwayAcoustics imponía obstruction 0/1 por un único raycast,
+suavizado en 150 ms; acoustic-dsp.test demuestra >10× atenuación con obstruction=1.
+El código nativo contiene SetObjectObstruction como API pero no se encontró una
+llamada del juego para la radio. Se retira el envío artificial, manteniendo 0 y las
+curvas del banco, distancia, posición, auxiliares y reverberación. No se sube/baja
+la ganancia global. No se afirma que una escucha nativa A/B esté verificada.
+
+PRUEBAS: build WASM completo correcto (work/shadows-build.log); 61 pasan, 0 fallan
+(work/reflections-suite-final.log, 21.17 s). Incluye tabla de luces finita con
+bias no nulos, regresión de radio sin raycast artificial, orden SSR/bloom y tres
+ciclos de recursos simulados. Bundle JS correcto. Navegador sin errores WebGPU:
+entrada → esquina → x=-6.97,z=7.57, 23 pasos, subtítulos activos, obstrucción 0.
+Pausa/reset y descarga real: created 774, destroyed 772, live 2 (recursos base),
+audioContexts 0. No equivale a tres recorridos completos f010/f005.
+Captura: outputs/pasillo-reflejos-suelo.png.
+
+SIGUIENTE: comparar SSR con la misma cámara y luces, revisar atlas/proyecciones
+nativos de sombras y espejo/forward, medir coste de recapturas con puertas,
+completar tres recorridos reales con descarga y memoria. HITO ABIERTO.
+
+P.T. WEB — SOMBRAS, OCLUSIÓN Y REFLEJOS — 2026-10-13
+Entrada conservada: bun dev → wizard → PKG/biblioteca → jugar.
+
+VERIFICADA (implementación y GPU): PCF de cuatro muestras con patrón fijo 2×2
+portado de shaders/lighting.glsl, visibilidad cuadrática. Adaptado al cubemap
+forward-Z de WebGPU. NO equivale todavía a portar el atlas/proyección nativos:
+continúan pendientes shadowStrength, viewBias y shadowBias por luz; el desplazamiento
+normal de 12 mm sigue siendo una aproximación y puede afectar cuadros cercanos.
+
+VERIFICADA (implementación y GPU): SSAO de shaders/ssao.frag y ssao_blur.frag,
+radios 3/1, pares y pesos originales, gain 0.85/5, fade hasta 100 m sobre 150 m,
+filtro 4×4 y potencia 1/0.45. Profundidad WebGPU convertida a metros con near .02,
+far 2000 (proyección actual); far del fade nativo 100. Render a resolución completa.
+Se aplica al HDR antes del bloom/LUT; la exposición continúa leyendo irradiancia
+sin oclusión. Emisivos se dibujan DESPUÉS de AO, ANTES de bloom. Espejo sigue en
+el pase principal: separar su composición/AO es pendiente de fidelidad.
+
+VERIFICADA (código y recaptura por controles): las seis caras y sus mipmaps se
+regeneran tras invalidación por geometría/puertas, etapa o setFeatures. Reutilizan
+texturas y buffers de cámara; no vuelven a importar assets. No hay recaptura por
+simple movimiento de cámara. Pendiente medir coste durante puertas animadas.
+El reflejo aún es una sonda local con caja aproximada: no es SSR nativo ni una
+solución completa a oclusores fuera de pantalla. No se declara paridad del suelo.
+
+PRUEBAS: 60 pasan, 0 fallan (work/occlusion-suite-final.log, 21.34 s), recursos
+originales incluidos. Test de orden meter → AO → emisivos → bloom y tres ciclos
+simulados de resize/destroy sin allocations retenidas. Estos ciclos usan un doble
+GPU y NO sustituyen tres recorridos reales completos. Bun bundle correcto.
+Navegador: shaders compilados, carga de 353 texturas, caminar/pausar, reset,
+recaptura al alternar luz indirecta y vista de inspección del espejo, sin errores
+registrados. Una descarga real: created 757, destroyed 755, live 2 (buffer + textura
+base persistentes), audioContexts 0. Recarga comprobada por wizard.
+
+EN CURSO: comparación visual con capturas aportadas. Se mantiene aspecto/FOV,
+se aprecia oclusión en encuentros y relieve continuo; persisten diferencias de
+reflejos y distribución de luz. outputs/pasillo-occlusion-sombras.png es evidencia
+WebGPU, NO una comparación pixel a pixel ni prueba de completar dos vueltas.
+BLOQUEADA: captura nativa con cámara/pose/luces idénticas; el intento previo del
+binario oficial falló con VK_ERROR_INCOMPATIBLE_DRIVER y la vía UI no proporcionó
+una captura utilizable. No se afirma haber ejecutado el renderer nativo esta vez.
+
+SIGUIENTES ACCIONES:
+1. Exportar y aplicar shadowStrength/viewBias/shadowBias y validar cuadros/bordes.
+2. Portar trazado/mezcla SSR del suelo y retirar caja aproximada con evidencia.
+3. Componer espejo/forward en el orden nativo y comparar iluminación del baño.
+4. Obtener referencia nativa controlada; medir diferencias sin retocar luces.
+5. Tres ciclos reales de recorrido f010→f005→f020/descarga, tiempos y memoria.
+HITO ABIERTO. No se recortan modelos, resolución de assets ni mipmaps por presupuesto.
+
+P.T. WEB — TANGENTES Y POSPROCESADO — 2026-10-13
+Entrada conservada: bun dev → wizard → PKG/biblioteca → jugar.
+
+VERIFICADA: importación FMDL usage 14 (tangente y signo) en WASM; transformación
+con los modelos estáticos, etapa adyacente, puerta animada y actores de secuencia.
+202.423 vértices estáticos; 24 sin tangente válida conservan reconstrucción por
+campo derivado. No se sustituyen tangentes válidas. La prueba sintética verifica
+valores, signo y aislamiento de un NaN; la biblioteca real valida toda la escena.
+
+VERIFICADA: lectura de ShParameterTables.lua mediante el lector Lua nativo y
+resident_common_settings.fox2 dentro de resident.fpkd. Se carga del QAR/PFTXS la
+LUT volumétrica common_saturation_a_FILTERLUT, se decodifica y transforma a la
+misma tira 256×16 del renderer nativo: escala [1,1.12,1.3], Hermite 0.4/0.6.
+No hay LUT de identidad usada como sustitución silenciosa. El importador reinicia
+su estado entre bibliotecas y rechaza recursos obligatorios ausentes.
+
+VERIFICADA en navegador: target HDR y canal separado de luz difusa; reducción
+GPU de luminancia Rec.709; asentamiento inicial de EV y adaptación temporal;
+compensación de EV por tramos; brightpass polinómico, cadena Kawase y suma sRGB;
+ScreenTonemap y aplicación de LUT después de bloom. Parámetros de f010/f005:
+EV [-10,1], key 1, compensaciones [-4.8,-3.8,-2.4] en EV [0,-3,-5], bloom
+weight 1.2, extracción 3, tamaño 2 (20 iteraciones). Las luces no se retintaron.
+Fuentes: shaders/mesh.vert, luminance.comp, bright.frag, kawase.frag,
+tonemap.frag, tonemap_curve.glsl; scene_renderer.cpp y scene_post.cpp.
+
+Pruebas: build WASM completo; 59 pruebas, 0 fallos; bundle JS válido. Navegador:
+carga real, caminar, girar, pausa, reinicio y vuelta a Biblioteca. Sin errores GPU
+nuevos en la ejecución válida. Tras descarga: created 754, destroyed 752,
+live 2 (1 buffer y 1 textura base), AudioContext 0. Es un ciclo de esta revisión,
+no tres recorridos completos ni una medición de memoria física del driver.
+Capturas: pasillo-hdr-tangentes.png y pared-tangentes-originales.png.
+
+EN CURSO: comparación visual emparejada. Las capturas muestran una mejora clara
+de continuidad del brillo y del color respecto de la versión anterior, pero no
+certifican igualdad píxel a píxel con PS4/port nativo. Falta comparar misma cámara,
+pose y estado de luces. La medición difusa procede del forward web; se conserva
+sin preexposición en RGBA16F y por ello el redondeo difiere del renderer nativo.
+Esta entrega porta la ruta de bloom tamaño 2 usada por las etapas verificadas;
+no implementa todas las variantes del renderer ni cambios de LUT de vueltas futuras.
+Quedan SSAO/contacto, reflejos completos, antialiasing y otros efectos de pantalla
+para la siguiente comparación. Se mantienen los bloqueos de colisiones de props
+y los recorridos completos documentados en el roadmap. HITO ABIERTO.
+
+ANTECEDENTE: REVISIÓN DE CALIDAD COMPLETA — 2026-10-13
+VERIFICADA: eliminado el límite de 512/1024 px y el tope artificial de 320 MiB.
+Se suben resolución y cadena mip originales. BC1/2/3/5 se conservan comprimidos
+si la GPU admite BC; sin BC se decodifican a RGBA, sin reducción de resolución.
+Los streams temporales se reutilizan durante la subida de cada textura. No se
+carga el PKG entero en RAM. La residencia por visibilidad sigue PENDIENTE.
+VERIFICADA: FOV vertical nativo 2*atan(6.75/13), aproximadamente 54.9 grados;
+viewport 16:9 estable aunque se expandan las herramientas de desarrollo.
+VERIFICADA en carga/GPU: subnormal y máscara, microrrugosidad según gbuffer.frag,
+selección puntual MatParamMap de las 2/3/4 filas originales. Los parámetros se
+aplican también a reflexión e iluminación directa. No se alteraron las luces
+para compensar diferencias de color. Índices no usados (-1) no se consultan;
+índices activos inválidos siguen siendo errores.
+Evidencia: 55 pruebas, 0 fallos; biblioteca real, 143 modelos, 349 texturas
+estáticas, 696191880 bytes de subidas de textura (no medición de VRAM física).
+Navegador: 353 texturas con actores, carga, caminar, pausa y reinicio sin nuevos
+errores GPU. Canvas 992x558. Captura: pasillo-calidad-completa.png.
+Tangentes, exposición, LUT y bloom: portados y probados en la revisión HDR de arriba.
+La comparación emparejada y el resto del renderer siguen pendientes.
+No se repitió el recorrido de dos vueltas en navegador con estos cambios.
+
+REVISIÓN VISUAL DE ESCENA COMPLETA — 2026-10-13
+Estado del hito: ABIERTO. Las verificaciones anteriores de las dos vueltas usaban
+una selección parcial de objetos; no certifican la fidelidad del escenario completo.
+
+VERIFICADA: carga de los 143 StaticModel del FOX2 en su orden original, con flags y
+cambios de visibilidad Lua. Se recuperaron cuadros, imágenes, muebles, radio,
+teléfono y objetos decorativos. La ausencia de los muebles explicaba reloj/lámpara
+aparentemente flotantes. scene-completeness.test.js comprueba modelos, mapas, mipmaps completos y
+compresión. La limitación de resolución de esta revisión quedó eliminada por
+la revisión de calidad completa documentada arriba.
+
+EN CURSO: materiales del entorno conectados a MatParamIndex y tabla verificada,
+respuesta Fresnel/NDF y tamaño de luz. Emisión SelfColor/SelfColorIntensity/Mask_Tex
+portada de model_cache.cpp y forward.frag; transparencia corregida tras detectar
+rectángulos opacos en el navegador. Multimt/subnorm y el posprocesado HDR se portaron en las revisiones posteriores.
+Continúan pendientes vidrio, espejo completo y comparación nativa emparejada.
+
+BLOQUEADA la certificación de colisiones de los objetos añadidos. Al activar todos
+los GEOM, la puerta lateral lobby_open impide pasar cerca de x=-11.37,z=7.52.
+Se conservaron las colisiones previamente verificadas (7.337 triángulos), separadas
+de la selección de modelos renderizados. runtime.pendingCollisions enumera los
+objetos pendientes; no se considera este cambio una certificación del hito.
+Siguiente acción: comparar esa puerta y el controlador en ejecución nativa antes
+de ampliar las colisiones. La prueba completa con esos GEOM falló en dos recorridos;
+no se ocultaron esos resultados con cambios de posición o activación de triggers.
+
+REFERENCIAS: las dos capturas de PS4 aportadas por el usuario permiten comprobar
+composición/objetos y diferencias de iluminación, pero no igualan cámara, pose,
+exposición ni estado temporal. El nuevo posprocesado reduce la diferencia de color y contraste, pero no
+certifica paridad. El binario nativo oficial falla desde shell por Metal; la apertura vía
+UI solicita permisos de Accesibilidad/Grabación de pantalla todavía pendientes.
+No hay todavía una comparación nativa emparejada.
+
+DESCARGA: Biblioteca ahora destruye escena, materiales, sombras, reflejos y cuerpo,
+libera reproductores y espera el cierre de AudioContext. El contador instrumenta
+createBuffer/createTexture/destroy reales: mide recursos explícitos, NO VRAM real.
+Las tres pruebas GPU/audio se registran por separado de los recorridos WASM.
+VERIFICADAS tres cargas/activaciones de audio/descargas en la misma página:
+242 buffers + 406 texturas cargados → 1 buffer + 1 textura base al descargar,
+y AudioContext cerrado en los tres ciclos. Evidencia: ciclos-gpu-audio.json.
+El tercero incluye caminata real hasta el reloj; no son tres recorridos completos.
+No equivalen a tres vueltas completas ni prueban por sí solas consumo de memoria
+nativo/driver, rendimiento o ausencia de fugas internas del navegador.
+
+LÍMITE DE ETAPAS: al finalizar f005, f020 es el destino final de esta versión. La
+interacción se detiene allí y se indica volver a Biblioteca. No se ejecutan ni se
+marcan como completados los eventos aún no implementados de f020.
+
+PRIORIDADES PARA CERRAR (en orden):
+1. Resolver y verificar el collider de lobby_open con la referencia nativa.
+2. Comparar tangentes/HDR/LUT/bloom con misma cámara y estado en entrada, reloj
+   y lámpara. Resolver diferencias de AO, reflejos, vidrio y antialiasing; sin
+   luces de relleno ni cambios manuales de color.
+3. Repetir f010→f005→f020 en navegador con colisiones completas; verificar pausa,
+   reinicio, espejo, audio y todos los eventos obligatorios.
+4. Tres ciclos completos carga/recorrido/descarga, con tiempos/FPS/memoria y
+   recursos GPU/audio de vuelta a su base; solo entonces cerrar el hito.
+
+1. TABLA ORIGINAL — VERIFICADA
+Inventario PFS completo del PKG de Downloads: 10 archivos, incluidos sce_sys y
+sce_module. Contenedores de assets: chunk1.psarc y texture.qar; también pathid_list.
+Se añadió inventario de solo lectura y extracción selectiva acotada a disco, con
+origen/tamaño/SHA-256. Los nombres del paquete no se usan como rutas de salida.
+
+Causa del diagnóstico anterior: PathCode64 cruza WASM como i64 con signo, mientras
+QAR indexa uint64. BigInt.asUintN(64) corrige las búsquedas de streams con bit alto.
+La tabla SÍ está en la biblioteca existente. No necesita otro PKG ni reimportación.
+FTEX: clave 156bea97c280d2bf, offset 164992, 80 bytes.
+Stream 1: clave b2c3ea97c280d2bf, offset 164736, 248 bytes comprimidos.
+Resultado: 256 × 2 RGBA lineal, 2048 bytes, sin fallback.
+SHA-256 decodificado: 01458629c0c02f05466a62c463c2aab3c62da51287103495db73ed2da8db0f05.
+19 materiales del personaje; índices 0, 4, 10, 11, 29, 38, 39, 41.
+55 texturas referenciadas comprobadas, 54 bindings usados por el renderer.
+No se generó una tabla a partir de material_params.fmtt ni se ajustaron valores a ojo.
+Evidencia: auditoria-materiales.json; prueba de clave i64 negativa y recursos reales.
+Siguiente acción: conservar estas regresiones al modificar el cargador.
+
+2. MATERIALES/LUCES — EN CURSO; COMPARACIÓN NATIVA BLOQUEADA
+Implementado: tabla original en piel/pelo/ojos/ropa y espejo; LUT Fresnel/NDF,
+translucidez, tangentes animadas, iris/lente, incidencia y patrón Bayer.
+Nueva respuesta especular por tamaño original de luz: SourceRadius y fórmula GLSL
+portadas a WASM/WGSL. Sin luces artificiales. Índices inválidos ahora fallan.
+El módulo de materiales se incluye también en web/dist al compilar.
+
+Verificado: build WASM; carga mediante wizard; 54 mapas/tabla original visibles en
+diagnóstico; movimiento y pausa frente al espejo; sin errores WebGPU de consola.
+No equivale a paridad visual. Pendientes: comparación igual cámara/pose/exposición,
+alfa temporal, dominante principal en demos visibles, máscaras y respuesta completa.
+MirrorLight nativo depende de la linterna activa y del volumen del espejo. No se
+ha añadido una luz de relleno al baño para mejorar capturas.
+
+Bloqueo probado: binario oficial v1.0.3 macOS arm64 reconoce 12 paquetes, pero
+vkCreateInstance devuelve VK_ERROR_INCOMPATIBLE_DRIVER: Metal no disponible en
+este entorno de ejecución. No produjo captura. Compilación nativa del checkout
+pendiente (faltan las herramientas de desarrollo del sistema).
+Siguiente acción: ejecutar la referencia nativa en una sesión con acceso a Metal,
+fijar cámara/pose/luces y comparar; registrar y corregir diferencias antes del cierre.
+
+3. DOS VUELTAS — RECORRIDO FUNCIONAL VERIFICADO; HITO GLOBAL ABIERTO
+Ruta física sin teletransporte ni invocación manual de triggers:
+f010 → f005 → cucarachas → retroceder al baño → siete golpes / PhotoPrepare →
+parada de cucarachas → salida original → f020. Verificada también en el navegador,
+con WebGPU y AudioWorklet activos; evidencia: segunda-vuelta-completada.png.
+Salir directamente sin volver al baño conserva f005 y permite retroceder.
+No se confunde la transferencia inicial con completar la segunda vuelta.
+
+A. VERIFICADA: instancias WASM independientes y selección temporal/restauración.
+   Reloj compartido basado en AudioContext; pausa sin avanzar eventos. Lectura
+   transaccional: un stream inválido no destruye otros. Hasta 16 instancias adicionales,
+   presupuesto de 128 MiB de streams/pistas; destrucción idempotente y rechazo de
+   handles caducados. Los eventos fallidos conservan su cursor para diagnóstico.
+B. VERIFICADA FUNCIONALMENTE: dos cucarachas con FMDL/esqueleto/pistas originales,
+   creación, visibilidad y parada por Lua; reloj y puerta de baño animados en paralelo.
+   El skin de estos actores se calcula en CPU/WASM y se dibuja en WebGPU. Paridad de
+   huesos auxiliares/tangentes y comparación visual nativa siguen PENDIENTES.
+C. VERIFICADA: DemoData.fileParams resuelve ambos efectos mediante el parser VFX nativo.
+   Reloj: 60 Play_sfx_digiclock_tick_solo; baño: siete Play_sfx_head_struck_02.
+   Son FxSoundCallProgramEffectNode, sin partículas visuales en estos dos archivos.
+   Emisores separados de radio/pasos; respeta stopPlaying/fade/curve y espera el fin
+   de la voz antes de reciclar el emisor. Se comprobó PCM real de ambos sonidos.
+   PENDIENTES: envíos acústicos/oclusión específicos de estos emisores VFX.
+D. VERIFICADA: PhotoPrepare aplica los siete cambios nativos (FrameWall, FrameGround
+   y cinco piezas). Se cargan sus recursos y se respetan las flags de visibilidad
+   iniciales. Esto no implementa todavía la recolección completa de fotografías.
+E. VERIFICADA FUNCIONALMENTE: sucesor f020 tomado de floor_order.h, puerta y cámara
+   originales, preparación previa, validación de suelo y reactivación del juego.
+   Se reutilizan dos copias acotadas del pasillo y sus texturas compartidas; no se
+   crea una copia adicional por vuelta. Iluminación de la copia adyacente se reactiva
+   para la segunda transición. El gestor general de etapas de todo el juego sigue
+   EN CURSO; el controlador conserva el alcance de f010/f005.
+F. EN CURSO: tres recorridos headless con liberación de instancias, más recorrido
+   WebGPU completo. Quedan tres ciclos instrumentados de GPU/audio y medición de FPS
+   y memoria GPU en la misma ruta. La reserva de memoria WASM no equivale a memoria
+   viva: se registran por separado heap reservado y malloc.uordblks.
+
+Presupuesto de texturas: 164 bindings del pasillo/actores/fotografías, 275,2 MiB
+RGBA a los límites de mip existentes. Tope acotado de esta carga: 320 MiB (antes 256).
+No incluye sombras/reflejos ni materiales del jugador; no es una cifra de VRAM total.
+No se ha cerrado la comparación visual nativa ni el hito global de fidelidad.
+
+4. IMPORTACIÓN, PRUEBAS Y RECURSOS — EN CURSO
+Verificada la compatibilidad de la biblioteca existente. Bun conserva identificadores
+permitidos y rangos; el auxiliar no carga el PKG completo en RAM ni expone rutas HTTP.
+Auditoría disponible en ambos auxiliares: --list y --extract-file.
+La extracción selectiva escribe resource.bin y provenance.json en carpeta nueva.
+Pendiente: incorporar dependencias/procedencia al manifiesto del wizard y ofrecer
+reimportación guiada para bibliotecas incompletas. La auditoría CLI no reemplaza esto.
+
+Pruebas: 51 pasan, 0 fallan con assets locales; extracción sintética pasa inventario,
+selección, hash, rechazo de sobrescritura y rutas inexistentes. MacLocal compila.
+La suite incluye el recorrido f010 → f005 → f020 y la salida prematura bloqueada.
+Siguiente acción: instrumentar GPU/audio por sesión y repetir tres ciclos en navegador;
+continuar la comparación visual nativa antes de cerrar el hito global.
+
+PASADA FINAL — PENDIENTE
+Ojos/pelo/piel/ropa; espejo/sombras; puertas/colisiones; triggers/luces;
+audio/subtítulos; pausa/reinicio; biblioteca/reimportación; fallos de carga.
+Medir carga, fotogramas y memoria en la misma ruta. Tres ciclos completos de
+carga/recorrido/descarga y contadores GPU/audio estables aún NO verificados.
+Una captura o una prueba de carga no cierra este hito.
+
+DESPUÉS
+Actores/interacciones de vueltas siguientes → progresión completa y guardado.
+Hosting será otro hito: contenedor, sesiones, cuotas, HTTPS y recuperación.
+Se mantienen rangos, temporales en disco y límites; no despliegue público ahora.
+No distribuir PKG ni recursos extraídos en una contribución upstream.
+
+MEDICIÓN DE TRES RECORRIDOS HEADLESS (no FPS de navegador):
+Three headless route cycles: [{"cycle":1,"elapsedMs":1707,"sequenceBytes":105116,"liveBytes":9970400,"wasmHeap":20185088},{"cycle":2,"elapsedMs":1665,"sequenceBytes":105116,"liveBytes":9943464,"wasmHeap":24248320},{"cycle":3,"elapsedMs":1746,"sequenceBytes":105116,"liveBytes":9934928,"wasmHeap":29097984}]
+Instancias activas tras destruir cada host: 0. Memoria viva: 9,97 → 9,94 → 9,93 MB.
+Heap reservado: 20,19 → 24,25 → 29,10 MB; optimización pendiente.
+
+2026-10-13 — Captura real del ratón y pérdida de foco
+VERIFICADA (pruebas): eliminado el fallback que ocultaba el cursor sin Pointer Lock y abría la pausa al abandonar el canvas. Cámara y movimiento requieren captura confirmada; soporta API con promesas y con eventos. Errores de captura se muestran en el menú; no se simula captura. Escape/UI libera el cursor. Perder foco no abre el menú; volver requiere un clic para recuperar la captura. La pestaña oculta mantiene suspensión del audio.
+Pruebas: 69 pass, 0 fail (work/pointer-capture-suite.log), incluidas 5 pruebas de captura, rechazo, foco y cancelación. Bundle navegador compilado correctamente.
+PENDIENTE: prueba manual de captura real en navegador externo. El navegador integrado rechazó Pointer Lock en la prueba anterior. Reiniciar bun dev para registrar pointer-capture.js en la lista de recursos; el sandbox impide terminar el servidor existente (PID 34852). No se declara validado el giro continuo en un navegador que rechaza la API.
+Siguiente acción: reiniciar bun dev, Comenzar en Chrome/Edge, girar varias vueltas, cambiar de ventana, volver y hacer un clic; comprobar Escape y Continuar.
+
+2026-10-13 — Wizard sin respuesta tras cambio del ratón
+VERIFICADA: el servidor vivo respondía 404 a pointer-capture.js y abortaba los imports estáticos de launcher.js. Control de captura integrado en runtime.js, recurso ya autorizado; eliminado el módulo separado. El wizard ahora importa app.js solo al jugar y muestra los errores de inicialización. No necesita reiniciar el servidor existente.
+Prueba navegador integrado: recarga, evento filechooser confirmado al pulsar Seleccionar PKG, biblioteca → progreso 14% → Comenzar; consola sin errores. No se volvió a importar un PKG completo ni se verificó el navegador referido como Zed. Evidencia: outputs/wizard-carga-verificada.png. Bundle compilado; suite: work/wizard-startup-suite.log.
+La indicación anterior de reiniciar para registrar pointer-capture.js queda resuelta por este cambio. Pendiente: captura real en navegador externo que acepte Pointer Lock.
+
+2026-10-13 — Hito de continuidad: f000 → f010
+IMPLEMENTACIÓN VERIFICADA POR PRUEBAS; COMPARACIÓN VISUAL EN CURSO.
+- WASM admite los triggers originales pt14_start en f000. event_retry permite diferir la solicitud mientras se prepara el destino sin cambiar Enter/ack de las vueltas existentes.
+- gc_p00_160: 228 fotogramas; cámara, raíz del jugador y puerta originales; sonidos originales en 1, 39, 110 y 170, programados una vez sobre el reloj de audio. Pausa conserva la secuencia.
+- Destino obtenido de script_next_floor (f010). Prepara un mundo WASM, geometría, materiales, luces, audio y GPU separados. Si falla, mantiene f000 y ofrece reintentar. El evento se puede reintentar dentro de su volumen.
+- Hallway se representa detrás de la puerta durante la salida con los conectores originales y un depth target compartido; iluminación propia por escena. La transferencia valida el suelo antes de sustituir la sesión. La habitación y sus recursos se liberan después de validar el destino.
+- Continúa con el controlador ya existente f010 → f005 → f020. f020 sigue siendo destino, no vuelta completada.
+EVIDENCIA: work/exit-track.log (pistas, conectores y eventos), work/test-exit.log, work/opening-transition-suite.log: 70 pass, 0 fail; work/opening-exit-build.log: WASM compilado; bundle JS compilado. La prueba cubre fallo de preparación, reintento sin salir del trigger, pausa, puerta animada, endpoint sobre suelo de f010 y liberación de secuencias.
+NAVEGADOR: carga inicial, precarga del pasillo 100%, sin errores GPU/JS; regreso a biblioteca: created 1059 / destroyed 1057 / live 2 (1 buffer + 1 textura base), audioContexts 0. Es UN ciclo de preparación/descarga, no tres recorridos completos.
+LÍMITE: la captura del ratón del navegador integrado sigue rechazada. No se ha verificado a pie en navegador externo la transición completa, ni igualado el cambio de exposición/radio con vídeo nativo controlado. No se cierra el hito visual ni las dos vueltas mediante esta prueba.
+
+SIGUIENTES ENTREGAS ORDENADAS
+1. EN CURSO — Recorrido manual f000 → f010: cámara/puerta, oclusión entre escenas, especular y exposición al cruzar, entrada de radio; comparación nativa con mismo estado. Corregir diferencias antes de marcar verificada.
+2. PENDIENTE — Tres ciclos GPU/audio de recorrido completo f000 → f010 → f005 → f020 → biblioteca, con tiempos de carga, fotogramas y memoria comparables. La precarga y descarga aisladas no sustituyen este ensayo.
+3. PENDIENTE — Cerrar fidelidad visual: profundidad de campo de intro, comandos de pantalla de cucarachas ya identificados y comparación de luces/reflejos/sombras. Mantener evidencia por condición.
+4. PENDIENTE — Inventario e implementación de eventos obligatorios de f020 (incluido gc_p04_340) antes de ampliar a la siguiente vuelta; luego guardado. No cambiar destino ni omitir comandos obligatorios.
+Bun dev, wizard, biblioteca y lectura por rangos conservados. No incluye despliegue público ni recursos del juego en el repositorio.
+
+2026-10-13 — Referencia de gameplay completo y prioridades
+VERIFICADA: referencia PS4 de Ocelot (QjGwTZ9XQxQ), capítulos hasta desenlace y muestreo visual parcial. Documento outputs/referencia-gameplay-completo.txt separa observaciones, índice del autor y evidencia nativa; no implica revisión continua ni equivalencia entre capítulos y floor IDs.
+HALLAZGO: demo_stream.cpp/demo_system.cpp interpolan cámara con parámetros originales no exportados por web/src/demo_assets.cpp. Próxima entrega: exportar esos datos y portar la entrada de cámara, luego medir la entrega a locomoción y el cambio de sesión/audio. El salto percibido aún no está atribuido por medición a una única causa.
+SECUENCIA: continuidad de cámara → luces del final del pasillo por estado → eventos f020 y vueltas intermedias → corredor alterado/f120 → Nazo/TrueEnd/ending y guardado. Medición de fluidez y tres recorridos GPU/audio en cada integración. No se cambió el renderer para aproximarlo visualmente a una captura comprimida.

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>P.T. · Configuración</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101512;color:#edf1e9;font:16px system-ui}button,.file{display:inline-block;background:#d3e6bb;color:#152013;border:0;border-radius:8px;padding:13px 20px;font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.secondary{background:#27332a;color:#edf1e9;border:1px solid #526149}.file input{position:absolute;width:1px;height:1px;opacity:0}h1{font-size:36px;margin:16px 0}p{color:#b6c1b6;line-height:1.6}#wizard{max-width:650px;margin:10vh auto;padding:32px}ol{display:flex;gap:24px;list-style:none;padding:0;color:#7e8e7d;font-size:14px}li[aria-current=step]{color:#d3e6bb}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:26px 0}.eyebrow{letter-spacing:.18em;font-size:12px;color:#b6c1b6}.note{font-size:13px;border-top:1px solid #364336;padding-top:20px}progress{width:100%;accent-color:#b8d398;margin:20px 0}#import-error,#error{color:#ffb7a3;white-space:pre-wrap}header{padding:18px 24px;border-bottom:1px solid #364336}header h1{font-size:22px}select{background:#27332a;color:#edf1e9;padding:8px;max-width:100%}.controls{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}#viewer{min-height:100dvh;display:flex;flex-direction:column}canvas{display:block;width:100%;height:100%;min-height:0}#status{padding:10px 24px;white-space:pre-wrap;font-size:13px}small{color:#b6c1b6}[hidden]{display:none!important}@media(max-width:650px){#wizard{margin:3vh auto;padding:24px}ol{gap:14px}}
+.game-view{position:relative;width:100%;aspect-ratio:16/9;flex:none;overflow:hidden}#subtitles{position:absolute;bottom:22px;left:8%;right:8%;text-align:center;white-space:pre-line;font:18px/1.45 system-ui;color:white;text-shadow:0 2px 3px black,0 0 5px black;pointer-events:none}#audio-status{padding:0 24px;font-size:13px}
+.credit{font-size:12px;letter-spacing:.06em;color:#a6aaa7}
+dialog{color:#eee;background:rgba(5,6,6,.98);border:1px solid #333;width:min(1040px,96vw);max-height:92dvh;padding:clamp(20px,4vw,48px);box-shadow:0 24px 100px #000}dialog::backdrop{background:#000b;backdrop-filter:blur(5px)}dialog h2{font-size:24px;font-weight:400;letter-spacing:.08em;margin:0 0 30px}.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px 60px}.menu-grid fieldset{border:0;padding:0;margin:0}.menu-grid legend{border-bottom:1px solid #333;width:100%;padding:0 0 10px;margin:0 0 16px}.setting{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:15px 0;font-size:15px}.setting input[type=range]{max-width:45%;accent-color:#ddd}.setting select{max-width:52%;background:#161818}.unavailable{font-size:13px;color:#898e8a;line-height:1.6}dialog button{background:transparent;color:#eee;border:1px solid #4b514b;border-radius:2px}dialog button:hover,dialog button:focus-visible{background:#353a36;outline:1px solid white}.menu-footer{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}@media(max-width:650px){.menu-grid{grid-template-columns:1fr;gap:24px}}
+dialog{padding:24px}dialog h2{margin-bottom:20px}.setting{margin:10px 0;font-size:14px}.unavailable{font-size:12px;line-height:1.5}.menu-grid legend{margin-bottom:10px}.menu-footer{margin-top:20px}#menu-graphics .setting{flex-direction:row-reverse}
+
+body:not(.development){background:#050606;color:#eee}
+#wizard{min-height:100dvh;margin:0 auto!important;max-width:680px;display:flex;flex-direction:column;justify-content:center;padding:clamp(24px,6vw,64px);text-align:center}
+#wizard h1{font-size:clamp(32px,6vw,52px);font-weight:300;letter-spacing:.05em}
+#wizard .actions{justify-content:center}#wizard ol,#wizard .note{display:none}
+#wizard button,#wizard .file{background:transparent;border:1px solid #555;color:#eee;border-radius:2px}
+#wizard button:hover,#wizard .file:focus-within,#wizard .file:hover{background:#333;outline:1px solid #eee}
+#wizard progress{accent-color:#ddd;height:4px}#wizard .credit{order:10;margin-top:48px}#wizard p{color:#aaa}
+body:not(.development) #viewer>header{position:absolute;right:16px;top:12px;z-index:3;border:0;padding:0}
+body:not(.development) #viewer>header>*:not(.controls),body:not(.development) #viewer .controls>*:not(#pause-menu),body:not(.development) #status,body:not(.development) #audio-status{display:none}
+body:not(.development) #pause-menu{background:#0008;border:1px solid #555;color:#eee;border-radius:2px}
+body:not(.development) #viewer{background:black;justify-content:center;height:100dvh;min-height:0}
+body:not(.development) .game-view{max-height:100dvh;width:min(100vw,177.7778dvh);align-self:center;aspect-ratio:16/9}
+body:not(.development) .unavailable{display:none}
+#start-game{position:fixed;inset:0;z-index:4;background:#000a;display:grid;place-content:center;text-align:center}#start-game button{background:#111;border:1px solid #888;border-radius:2px;color:white;padding:18px 48px}
+body.capture-view #pause-menu{visibility:hidden}
+
+#game-menu{width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;background:#000;padding:clamp(24px,6vh,80px) clamp(24px,6vw,120px);font-family:Arial,sans-serif;box-shadow:none}
+#game-menu h2{font-size:clamp(22px,2vw,32px);letter-spacing:0;margin-bottom:5vh}
+#game-menu .menu-grid{gap:8vw;min-height:62vh}
+#game-menu fieldset{margin-bottom:32px}#game-menu legend{font-size:20px;border-color:#202020;font-weight:400}
+#game-menu .setting{font-size:18px;min-height:38px;color:#ccc}
+#game-menu button{border:0;text-align:left;border-radius:0;font-size:18px;padding:9px 18px;background:transparent}
+#game-menu button:hover,#game-menu button:focus-visible{background:linear-gradient(90deg,transparent,#5558,transparent);outline:1px solid #777}
+#game-menu input{accent-color:#ddd}#game-menu select{background:#080808;color:#ccc;border:1px solid #333}
+#game-menu .camera-options{margin-top:10vh}#game-menu .calibration-space{height:28vh}
+#game-menu .menu-link{margin-top:3vh}#game-menu .menu-footer{gap:5vw}
+#game-menu .credit{text-align:right;margin-top:3vh;color:#777}#game-menu .control-hint{font-size:13px;color:#888}
+#game-menu #menu-graphics .setting{flex-direction:row}
+@media(max-width:650px){#game-menu .menu-grid{min-height:0;gap:20px}#game-menu .calibration-space{height:4vh}#game-menu .camera-options{margin-top:24px}}
+
+#native-menu{position:absolute;inset:0;width:100%;height:100%;outline:none}
+#game-menu.native-page{padding:0;overflow:hidden}
+#game-menu.native-page #menu-title,#game-menu.native-page .menu-footer,#game-menu.native-page .credit{position:absolute;left:-10000px}
+#native-web-settings{position:absolute;left:63%;top:85%;z-index:2}
+#game-menu.native-page #menu-error{position:absolute;bottom:0;left:5%;max-width:90%;font-size:12px}
+</style>
+<section id="wizard"><div class="eyebrow">P.T. / WEB</div><p class="credit">by denyncrawford and LoreanXavier</p><ol aria-label="Progreso"><li id="step-1" aria-current="step">1 · Seleccionar</li><li id="step-2">2 · Preparar</li><li id="step-3">3 · Abrir</li></ol>
+<h1 id="wizard-title">P.T.</h1><p id="wizard-description">Selecciona tu copia para comenzar.</p>
+<div id="choose-actions" class="actions"><label class="file">Seleccionar PKG<input id="pkg" type="file" accept=".pkg"></label><button id="resume-library" class="secondary" hidden>Jugar</button></div>
+<progress id="import-progress" hidden aria-label="Preparando archivos"></progress><p id="loading-status" role="status"></p><p id="import-status" hidden></p><p id="import-error" role="alert"></p>
+<button id="open-viewer" hidden>Jugar</button>
+<p class="note">Versión de desarrollo: puedes caminar por la arquitectura real con colisiones originales. Texturas originales activas. Dos vueltas: scripts Lua, reloj, cucarachas, evento del baño y transición a f020. Iluminación indirecta original y espejo del baño activos. Radio, audio espacial y subtítulos originales activos. Cuerpo animado con sombras en el espejo. Comparación visual nativa y siguientes etapas pendientes.</p></section>
+<section id="viewer" hidden><header><h1>P.T. · Web</h1><small class="credit">by denyncrawford and LoreanXavier</small><div class="controls"><button id="enter">Jugar</button><button id="pause-menu" class="secondary">Pausa / Opciones</button><button id="reset" class="secondary">Volver al inicio</button><button id="back-library" class="secondary">Biblioteca</button></div><small>WASD: mover · ratón: mirar o arrastrar · R: volver al inicio · Esc: pausa.</small><details><summary>Herramientas de desarrollo</summary><div class="controls"><label><input type="checkbox" id="shadows" checked> Sombras</label><label><input type="checkbox" id="reflections" checked> Reflejos</label>
+<label><input type="checkbox" id="indirect" checked> Luz indirecta</label><label><input type="checkbox" id="mirrors" checked> Espejo</label><button id="inspect-mirror">Probar espejo</button><button id="demo">Pasillo de prueba</button><label class="file">Abrir archivo<input id="files" type="file" accept=".psarc,.fpk,.fpkd,.fmdl" multiple></label><select id="models" aria-label="Modelo del archivo"><option>Selecciona archivos locales</option></select></div><p id="audio-meter"></p><p id="walk-debug"></p></details><div id="error" role="alert"></div></header><div class="game-view"><canvas id="canvas"></canvas><div id="opening-fade" style="position:absolute;inset:0;background:black;opacity:0;pointer-events:none"></div><div id="subtitles" aria-live="polite"></div><button id="stage-loading" hidden style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#111c;color:white" aria-live="polite">Preparando pasillo</button></div><p id="audio-status" role="status"></p><div id="status" role="status">Inicializando…</div></section>
+<dialog id="game-menu" aria-labelledby="menu-title"><h2 id="menu-title" tabindex="-1">OPCIONES</h2>
+<section id="original-options" class="menu-grid" hidden>
+<div><fieldset><legend>Brillo</legend><div class="calibration-space" aria-hidden="true"></div><label class="setting">Brillo <input id="brightness" aria-label="Brillo" type="range" min="0" max="10" step="1" value="7"></label></fieldset></div>
+<div><fieldset><legend>Subtítulos</legend><label class="setting">Activados <input id="show-subtitles" type="checkbox" checked></label><label class="setting">Idioma <select id="subtitle-language"><option value="Spa">Español</option></select></label></fieldset>
+<fieldset class="camera-options"><legend>Cámara</legend><label class="setting">Invertir eje vertical <input id="invert-y" type="checkbox"></label><label class="setting">Invertir eje horizontal <input id="invert-x" type="checkbox"></label></fieldset><button id="open-web-settings" class="menu-link">Configuración web ›</button></div>
+</section>
+<canvas id="native-menu" tabindex="0" aria-label="Opciones originales: clic para seleccionar; flechas para brillo; Z para ampliar la imagen"></canvas><button id="native-web-settings">Configuración web ›</button>
+<section id="web-settings" class="menu-grid" hidden>
+<div><fieldset><legend>Pantalla</legend><label class="setting">Modo de pantalla <button id="fullscreen">Pantalla completa</button></label><label class="setting">Resolución de render <select id="render-scale"><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></label></fieldset><fieldset id="menu-graphics"><legend>Gráficos</legend></fieldset></div>
+<div><fieldset><legend>Sonido</legend><label class="setting">Volumen <input id="master-volume" aria-label="Volumen" type="range" min="0" max="100" value="100"></label></fieldset><fieldset><legend>Controles</legend><label class="setting">Sensibilidad del ratón <input id="sensitivity" aria-label="Sensibilidad del ratón" type="range" min="0.2" max="3" step="0.1" value="1"></label><p class="control-hint">WASD: movimiento · botón derecho: zoom · Esc: pausa</p></fieldset><fieldset><legend>Partida</legend><button id="restart-session">Reiniciar partida</button><button id="hide-menu-capture" title="Mantiene la pausa. Pulsa Esc para volver al menú.">Ocultar menú para captura</button></fieldset></div>
+</section>
+<p id="menu-error" role="alert"></p><div class="menu-footer"><button id="settings-back" hidden>‹ Regresar</button><button id="resume-game">Regresar al juego</button><button id="menu-library">Salir a biblioteca</button></div><p class="credit">by denyncrawford and LoreanXavier</p></dialog>
+<dialog id="restart-confirm"><h2>¿REINICIAR LA PARTIDA?</h2><p>Se perderá el avance de esta sesión. Se conservan tu biblioteca y tus opciones.</p><div class="menu-footer"><button id="cancel-restart">Cancelar</button><button id="confirm-restart">Reiniciar</button></div></dialog>
+<div id="start-game" hidden><button id="start-playing">Comenzar</button></div>
+<script type="module" src="launcher.js"></script></html>

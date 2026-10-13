@@ -18,6 +18,8 @@ byte[] Synthetic(string name,bool pt=true) {
 string Build(string file,string contentId,Func<string,string> place,bool pt=true) {
     FSDir tree=new();FSDir sys=new(){name="sce_sys",Parent=tree};tree.Dirs.Add(sys);
     var sfo=ParamSfo.DefaultAC;sys.Files.Add(new FSFile(s=>sfo.Write(s),"param.sfo",sfo.FileSize){Parent=sys});
+    FSDir auditModule=new(){name="sce_module",Parent=tree};tree.Dirs.Add(auditModule);
+    auditModule.Files.Add(new FSFile(s=>s.Write(new byte[]{1,2,3}),"audit.bin",3){Parent=auditModule});
     foreach(string name in Extraction.Required) {
         string? original=dump!=null?Path.Combine(dump,name):null;
         byte[] fixture=Synthetic(name,pt);
@@ -64,3 +66,18 @@ string retail=Path.Combine(root,"retail.pkg");File.Copy(pkg,retail);
 using(var f=new FileStream(retail,FileMode.Open,FileAccess.ReadWrite)){f.Position=keys.DataOffset+0x20+7*0x20+3*0x100;var garbage=new byte[0x100];new Random(1).NextBytes(garbage);f.Write(garbage);}
 if(Refusal(retail,Path.Combine(root,"retail-out"))!=Extraction.RetailMessage)throw new Exception("Retail PKG not refused with the dump message");
 if(Directory.Exists(Path.Combine(root,"retail-out")))throw new Exception("Retail PKG left output");Console.WriteLine("PASS retail PKG refused, asks for a dump");
+// Audit covers system directories, reads exact entries, and never overwrites output.
+var audit=PackageAudit.Inventory(pkg);
+if(!audit.Any(e=>e.Path.EndsWith("/sce_module/audit.bin")))throw new Exception("Audit omitted system directory");
+var selected=audit.Single(e=>e.Path.EndsWith("/chunk1.psarc"));var auditDir=Path.Combine(root,"audit-file");
+PackageAudit.Extract(pkg,selected.Path,auditDir);
+var auditBytes=File.ReadAllBytes(Path.Combine(auditDir,"resource.bin"));
+if(!auditBytes.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"extracted","chunk1.psarc"))))throw new Exception("Selective extraction differs");
+using(var provenance=System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(auditDir,"provenance.json")))) {
+ var e=provenance.RootElement;
+ if(e.GetProperty("entry").GetString()!=selected.Path||e.GetProperty("bytes").GetInt64()!=auditBytes.LongLength||e.GetProperty("sha256").GetString()!=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(auditBytes)).ToLowerInvariant())throw new Exception("Incorrect audit provenance");
+}
+try{PackageAudit.Extract(pkg,selected.Path,auditDir);throw new Exception("Overwrite accepted");}catch(IOException){}
+try{PackageAudit.Extract(pkg,"/uroot/../missing",Path.Combine(root,"audit-invalid"));throw new Exception("Invalid selection accepted");}catch(IOException){}
+if(Directory.Exists(Path.Combine(root,"audit-invalid")))throw new Exception("Failed selection left output");
+Console.WriteLine("PASS complete inventory, selective extraction, provenance and overwrite refusal");

@@ -90,7 +90,10 @@ public static class Extraction {
 }
 public static class Program {
     public static int Main(string[] args) {
-        try{if(args.Length!=2)throw new ArgumentException("Usage: PT.PkgExtract <P.T. package> <empty output directory>");Extraction.Run(args[0],args[1],Console.WriteLine);return 0;}
+        try{
+            if(args.Length==2&&args[0]=="--list"){Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(PackageAudit.Inventory(args[1])));return 0;}
+            if(args.Length==4&&args[0]=="--extract-file"){PackageAudit.Extract(args[1],args[2],args[3]);return 0;}
+            if(args.Length!=2)throw new ArgumentException("Usage: PT.PkgExtract <P.T. package> <empty output directory>");Extraction.Run(args[0],args[1],Console.WriteLine);return 0;}
         catch(Exception e){Console.Error.WriteLine(e.Message);return 1;}
     }
 }

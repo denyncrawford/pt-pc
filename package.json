@@ -1,0 +1,11 @@
+{
+  "name": "pt-pc-web",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.3",
+  "scripts": {
+    "dev": "bun server/dev.ts",
+    "test": "bun test server/*.test.ts web/tests",
+    "build:wasm": "bash web/build.sh"
+  }
+}

@@ -1,4 +1,5 @@
 #include "game/floor_level.h"
+#include "game/floor_order.h"
 
 #include <algorithm>
 
@@ -8,8 +9,7 @@
 namespace pt::game {
 namespace {
 
-constexpr const char* kFloorNames[] = {"f000", "f010", "f005", "f020", "f030", "f040", "f060", "f050",
-                                       "f070", "f080", "f090", "f100", "f110", "f120", "f160", "ending"};
+
 
 constexpr uint32_t kRandomSfx[] = {0x52681170, 0x84541725, 0x5EDD03D2, 0xABE1690F, 0x9D850999, 0x4B98D114, 0xF028C99A, 0x688DB123};
 

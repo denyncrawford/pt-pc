@@ -53,3 +53,28 @@ scratch/*
 # .NET build output of the installer helper and its tests (tools/ci/release.py publishes the helper itself)
 installer/*/bin/
 installer/*/obj/
+
+# Local web library and extraction tools (never commit game assets)
+/.data/
+/.cache/
+
+# macOS local metadata
+.DS_Store
+
+# User game archives, decoded assets, captures and local build dependencies
+*.psarc
+*.pftxs
+*.geom
+*.gani
+*.mtar
+*.rig
+*.uif
+*.uia
+*.uilb
+*.ffnt
+*.lng
+*.wem
+node_modules/
+.env
+.env.*
+!.env.example

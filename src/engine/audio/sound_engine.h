@@ -79,6 +79,8 @@ struct EngineNotification {
 class SoundEngine {
 public:
     explicit SoundEngine(std::unique_ptr<SoundBankSet> banks);
+    // Hosts without an entropy API on the audio thread may supply a seed.
+    SoundEngine(std::unique_ptr<SoundBankSet> banks, uint32_t seed);
     ~SoundEngine();
 
     PlayingId PostEvent(uint32_t event_id, GameObjectId object, std::shared_ptr<const Media> external = nullptr);

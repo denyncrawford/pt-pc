@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P.T. · laboratorio WebGPU / WASM</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101313;color:#e4e7df;font:14px system-ui}header{padding:20px 24px;border-bottom:1px solid #343b35}h1{font-size:20px;margin:0 0 8px}p{color:#b1bbb0;margin:8px 0;line-height:1.5}.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:14px}button,select,.file{background:#28362b;color:#e4e7df;border:1px solid #63785f;border-radius:5px;padding:9px;max-width:100%;cursor:pointer}.file input{display:none}canvas{display:block;width:100%;height:calc(100vh - 260px);min-height:360px}#status{padding:10px 24px;color:#c5d8bb;white-space:pre-wrap}small{color:#a9b2a4}#error{color:#ffb7a3}select{max-width:450px}
+</style>
+<header><h1>P.T. / laboratorio WebGPU + WebAssembly</h1>
+<p>Prototipo técnico. La escena inicial es sintética; no contiene recursos del juego. Los archivos seleccionados se leen localmente y no se suben.</p>
+<div class="controls"><button id="demo">Pasillo de prueba</button><label class="file">Abrir chunk1.psarc / FPK / FMDL<input id="files" type="file" accept=".psarc,.fpk,.fpkd,.fmdl" multiple></label><select id="models" aria-label="Modelo del archivo"><option>Selecciona archivos locales</option></select><button id="enter">Activar cámara</button><button id="reset">Encuadrar</button></div>
+<p><small>WASD: mover · ratón: mirar · Q/E: bajar/subir · Shift: acelerar · Esc: soltar ratón. Visor de geometría sin colisiones, texturas originales ni lógica de juego.</small></p>
+<div id="error" role="alert"></div></header><canvas id="canvas"></canvas><div id="status" role="status">Inicializando…</div>
+<script type="module" src="app.js"></script></html>

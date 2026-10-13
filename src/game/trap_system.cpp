@@ -1,4 +1,5 @@
 #include "game/trap_system.h"
+#include "game/trap_query.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -59,13 +60,7 @@ void TrapSystem::DumpTraps(const Stage& stage) const {
 bool TrapSystem::PlayerInside(const Stage& stage, const TrapPlacement& trap) const {
     // 0xBEEC20: a point query at the trap object
     const glm::vec3 point = game_.GetPlayer().TrapPoint();
-    for (const glm::mat4& box : trap.boxes) {
-        const glm::vec3 local(glm::inverse(stage.ToWorld(box)) * glm::vec4(point, 1.0f));
-        if (std::abs(local.x) <= 0.5f && std::abs(local.y) <= 0.5f && std::abs(local.z) <= 0.5f) {
-            return true;
-        }
-    }
-    return false;
+    return PointInTrap(trap.boxes, stage.file_to_world, point);
 }
 
 float TrapSystem::TrapYaw(const Context& ctx) const {

@@ -21,7 +21,8 @@ struct GeomTriangle {
     uint16_t prim_info = 0;
 };
 
+// Optional skipped_movement reports node 0 polygons requiring missing FMDL vertices.
 bool LoadGeom(std::span<const uint8_t> data, std::span<const glm::vec3> fmdl_positions, std::vector<GeomTriangle>& out,
-              bool* skipped_fmdl_materials = nullptr);
+              bool* skipped_fmdl_materials = nullptr, bool* skipped_movement = nullptr);
 
 }

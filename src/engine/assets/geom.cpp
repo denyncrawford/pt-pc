@@ -62,6 +62,7 @@ struct GroupContext {
     std::span<const glm::vec3> fmdl;
     std::vector<uint32_t> materials;
     bool skipped_materials = false;
+    bool skipped_vertices = false;
 };
 
 uint32_t PolyMaterial(const GroupContext& group, uint16_t info) {
@@ -101,9 +102,12 @@ void ReadShapes(const Reader& r, size_t shape, int depth, GroupContext& group, s
                         out.push_back({va, vc, source.Get(d), tags, group.node, material, flags, info});
                     }
                 }
-            } else if (!group.materials.empty()) {
-                for (uint32_t p = 0; p < count && !group.skipped_materials; ++p) {
-                    group.skipped_materials = PolyMaterial(group, r.At<uint16_t>(shape + 0x20 + size_t(p) * 10 + 8)) != 0;
+            } else {
+                group.skipped_vertices = true;
+                if (!group.materials.empty()) {
+                    for (uint32_t p = 0; p < count && !group.skipped_materials; ++p) {
+                        group.skipped_materials = PolyMaterial(group, r.At<uint16_t>(shape + 0x20 + size_t(p) * 10 + 8)) != 0;
+                    }
                 }
             }
         } else if (type == kPrimAabb) {
@@ -123,7 +127,7 @@ void ReadShapes(const Reader& r, size_t shape, int depth, GroupContext& group, s
 }
 
 bool LoadGeom(std::span<const uint8_t> data, std::span<const glm::vec3> fmdl_positions, std::vector<GeomTriangle>& out,
-              bool* skipped_fmdl_materials) {
+              bool* skipped_fmdl_materials, bool* skipped_movement) {
     Reader r{data};
     if (r.At<uint32_t>(0) != kGeomVersion) {
         return false;
@@ -156,6 +160,7 @@ bool LoadGeom(std::span<const uint8_t> data, std::span<const glm::vec3> fmdl_pos
             for (size_t block = payload; block < terminator; block += 0x20) {
                 ReadShapes(r, block + r.At<uint32_t>(block + 0x10), 0, context, out);
             }
+            if (skipped_movement && node_index == 0 && context.skipped_vertices) *skipped_movement = true;
             if (skipped_fmdl_materials && context.skipped_materials) {
                 *skipped_fmdl_materials = true;
             }

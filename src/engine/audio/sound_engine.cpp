@@ -4,7 +4,7 @@
 
 #if defined(__aarch64__)
 #include <arm_acle.h>
-#else
+#elif defined(__SSE__) || defined(_M_X64) || defined(_M_IX86)
 #include <pmmintrin.h>
 #include <xmmintrin.h>
 #endif
@@ -303,7 +303,9 @@ void Ramp::Transition(float target, uint64_t now, float ms, Interp shape, bool d
     end = decibels ? FastGainToDb(FastPow10(to * 0.05f)) : to;
 }
 
-SoundEngine::SoundEngine(std::unique_ptr<SoundBankSet> banks) : banks_(std::move(banks)), rng_(std::random_device{}()) {
+SoundEngine::SoundEngine(std::unique_ptr<SoundBankSet> banks) : SoundEngine(std::move(banks), std::random_device{}()) {}
+
+SoundEngine::SoundEngine(std::unique_ptr<SoundBankSet> banks, uint32_t seed) : banks_(std::move(banks)), rng_(seed) {
     for (const auto& bank : banks_->Banks()) {
         for (const auto& object : bank->Objects()) {
             if (object->type == HircType::Event) {
@@ -3636,7 +3638,7 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
     /* Apple silicon (docs/macos.md): FPCR.FZ is the ARM64 flush to zero of both inputs and results, as FTZ and DAZ below */
     const uint64_t fpcr = __arm_rsr64("fpcr");
     __arm_wsr64("fpcr", fpcr | (uint64_t(1) << 24));
-#else
+#elif defined(__SSE__) || defined(_M_X64) || defined(_M_IX86)
     const unsigned int csr = _mm_getcsr();
     _mm_setcsr(csr | 0x8040);
 #endif
@@ -3694,7 +3696,7 @@ void SoundEngine::Render(float* out, uint32_t frames, uint32_t output_channels) 
     }
 #if defined(__aarch64__)
     __arm_wsr64("fpcr", fpcr);
-#else
+#elif defined(__SSE__) || defined(_M_X64) || defined(_M_IX86)
     _mm_setcsr(csr);
 #endif
 }
