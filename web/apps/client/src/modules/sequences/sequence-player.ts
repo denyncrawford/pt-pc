@@ -16,6 +16,7 @@ export class SequenceClock {
   }
 }
 export class SequencePlayer {
+  declare lights: Map<string, { name: string; data: Float32Array; dynamic: boolean }>;
   declare models: any;
   declare origin: any;
   declare w: any;

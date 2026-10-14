@@ -38,12 +38,24 @@ static std::unordered_map<const pt::fox2::Entity*,bool> model_visible;
  #include "script_bridge.h"
 static uint32_t photo_word=1;
 static bool photo_active=false;
+static uint32_t photo_armed=0;
+static float photo_hold=0;
+static bool zoom_held=false,zoom_pressed=false;
+static glm::vec3 view_eye(0),view_forward(0,0,-1),view_right(1,0,0),view_up(0,1,0);
+static float view_tan=0.5f;
+static bool InView(const pt::fox2::Entity* locator,float area){
+ if(!stage||!locator)return false;
+ const glm::vec3 offset=glm::vec3(stage->file->WorldTransform(*locator)[3])-view_eye;
+ const float depth=glm::dot(offset,view_forward);
+ if(!(depth>0&&depth<1000))return false;
+ return std::abs(glm::dot(offset,view_right)/(depth*view_tan*(16.0f/9.0f)))<area&&std::abs(glm::dot(offset,view_up)/(depth*view_tan))<area;
+}
 extern "C" {
 EMSCRIPTEN_KEEPALIVE uint64_t texture_pathcode(const char* path) {return pt::PathCode64(path);}
 EMSCRIPTEN_KEEPALIVE int scene_load(const uint8_t* data, int size) {
  auto file=std::make_shared<pt::fox2::DataSetFile>();
  if(size<=0 || !file->Load("hallway", {data,size_t(size)})) return 0;
- photo_word=1;photo_active=false;stage=pt::game::BuildStageData(file,"hallway"); ResetScriptHost(); requests.clear();trap_hits.clear();trap_done.clear();model_visible.clear(); probes.clear();for(const auto& e:file->Entities())if(e.class_name=="ShLightProbe")probes.push_back(&e); return stage->static_models.size();
+ photo_word=1;photo_active=false;photo_armed=0;photo_hold=0;zoom_held=false;zoom_pressed=false;stage=pt::game::BuildStageData(file,"hallway"); ResetScriptHost(); requests.clear();trap_hits.clear();trap_done.clear();model_visible.clear(); probes.clear();for(const auto& e:file->Entities())if(e.class_name=="ShLightProbe")probes.push_back(&e); return stage->static_models.size();
 }
 EMSCRIPTEN_KEEPALIVE const char* scene_model_name(int i){return stage->static_models.at(i).name.c_str();}
 EMSCRIPTEN_KEEPALIVE void scene_model_visibility(int i,int visible){model_visible[stage->static_models.at(i).entity]=visible!=0;}
@@ -66,7 +78,20 @@ EMSCRIPTEN_KEEPALIVE int scene_photo_prepare(){if(!(photo_word&2))photo_word=2;r
 EMSCRIPTEN_KEEPALIVE int scene_photo_word(){return photo_word;}
 EMSCRIPTEN_KEEPALIVE int scene_photo_pending(){return stage&&photo_active&&!(photo_word&0x100);}
 EMSCRIPTEN_KEEPALIVE int scene_photo_collect_option(){if(!scene_photo_pending())return 0;photo_word|=0x100;photo_apply();return 1;}
+// The native Photo puzzle arms on a Zoom press in the authored trap and
+// commits only after two seconds held (NazoManager::Arm/Update/Commit).
+EMSCRIPTEN_KEEPALIVE int events_view(float x,float y,float z,float yaw,float pitch,float fov,int held,float dt){
+ view_eye={x,y,z};view_forward={std::sin(yaw)*std::cos(pitch),std::sin(pitch),-std::cos(yaw)*std::cos(pitch)};
+ view_right={std::cos(yaw),0,std::sin(yaw)};view_up=glm::cross(view_right,view_forward);
+ view_tan=std::tan(fov*0.5f);zoom_pressed=held&&!zoom_held;zoom_held=held!=0;
+ if(!zoom_held){photo_armed=0;photo_hold=0;return 0;}
+ if(!photo_armed)return 0;
+ photo_hold+=std::clamp(dt,0.0f,0.1f);
+ if(photo_hold<=2.0f)return 0;
+ const uint32_t collected=photo_armed;photo_word|=collected;photo_armed=0;photo_hold=0;photo_apply();return collected;
+}
 static void photo_floor(const std::string& name){
+ photo_armed=0;photo_hold=0;zoom_held=false;zoom_pressed=false;
  // FloorLevel::RelocateGimmicks: f005 preserves the prepared state; subsequent
  // playable floors activate Photo without discarding its collected-piece bits.
  if(name=="f000"||name=="f010"){photo_active=false;photo_word=1;}
@@ -142,7 +167,7 @@ EMSCRIPTEN_KEEPALIVE int events_tick(float x,float y,float z,float body_yaw,floa
  auto wrap=[](float a){return std::atan2(std::sin(a),std::cos(a));};
  for(const auto& trap:stage->traps){
   // Common traps and the current floor share the original condition state.
-  if(!(script_floor=="f000"&&trap.name.starts_with("pt14_start|"))&&trap.name.find("|common_demo|")==std::string::npos&&trap.name.find("|"+script_floor+"_demo|")==std::string::npos&&trap.name.find("|pt14_hallway_trap0000|")==std::string::npos)continue;
+  if(!(script_floor=="f000"&&trap.name.starts_with("pt14_start|"))&&trap.name.find("|common_demo|")==std::string::npos&&trap.name.find("|"+script_floor+"_demo|")==std::string::npos&&trap.name.find("|pt14_hallway_trap0000|")==std::string::npos&&trap.name.find("|pt14_hallway_nazo|")==std::string::npos)continue;
   bool hit=BodyEnabled(trap.entity,trap.enable)&&pt::game::PointInTrap(trap.boxes,glm::mat4(1),{x,y+player.shape.center_height,z});
   for(const auto& c:trap.conditions){bool match=hit&&BodyEnabled(c.entity,c.enable)&&!(c.is_once&&trap_done[c.entity]);
    for(const auto& check:c.checks){if(!match||!check.entity)continue;const auto& e=*check.entity;
@@ -150,7 +175,7 @@ EMSCRIPTEN_KEEPALIVE int events_tick(float x,float y,float z,float body_yaw,floa
     if(check.class_name!="ShTrapCheckPlayerInputDirectionCallbackDataElement"){match=false;continue;}
     auto target=f.GetEntity(e,"targetLink");const auto m=f.WorldTransform(target?*target:*trap.entity);const float yaw=std::atan2(m[2].x,m[2].z),limit=glm::radians(f.GetFloat(e,"degreeLimit",0,45));
     if(f.GetBool(e,"isCheckPlayerDir")&&std::abs(wrap(body_yaw-yaw))>limit)match=false;
-    if(f.GetBool(e,"isCheckButton",0,true)){const auto input=f.GetString(e,"input");if(input=="Zoom")match=false;else if(input=="LStick"&&(std::hypot(move_x,move_z)<=0||std::abs(wrap(std::atan2(move_x,move_z)-yaw))>limit))match=false;}
+    if(f.GetBool(e,"isCheckButton",0,true)){const auto input=f.GetString(e,"input");if(input=="Zoom"&&!zoom_pressed)match=false;else if(input=="LStick"&&(std::hypot(move_x,move_z)<=0||std::abs(wrap(std::atan2(move_x,move_z)-yaw))>limit))match=false;}
    }
    const bool was=trap_hits[c.entity];trap_hits[c.entity]=match;int flag=match?(was?4:1):(was?2:0);if(!flag)continue;
    for(const auto& cb:c.execs){if(!cb.entity)continue;const auto& e=*cb.entity;
@@ -158,6 +183,15 @@ EMSCRIPTEN_KEEPALIVE int events_tick(float x,float y,float z,float body_yaw,floa
      if(flag!=1)continue;if(f.GetBool(e,"orderFloorDemo")){bool floor=false;auto p=f.FindProperty(e,"floorNameArray");for(size_t i=0;p&&i<p->Count();i++)floor|=f.ElementString(*p,i)==script_floor;if(!floor)continue;}
     }else if(cb.class_name=="GeoTrapScriptCallbackDataElement"){
      if(flag==4)continue;if(f.GetBool(*c.entity,"orderFloor")&&f.GetString(*c.entity,"floorName")!=script_floor)continue;
+    }
+    if(cb.class_name=="ShTrapExecNazoCallbackDataElement"){
+     const auto name=f.GetString(e,"checkName");
+     const char* pieces[]={"PhotoLisa","PhotoTree","PhotoGap","PhotoBath","PhotoStair"};
+     bool photo=false;for(int i=0;i<5;i++)if(name==pieces[i]){
+      photo=true;const uint32_t bit=8u<<i;
+      if(flag==4&&photo_active&&!(photo_word&bit)&&!photo_armed&&zoom_pressed&&InView(f.GetEntity(e,"checkLocator"),f.GetFloat(e,"checkAreaSize",0,0.4f))){photo_armed=bit;photo_hold=0;}
+     }
+     if(photo)continue;
     }
     BrowserTrapRequest request{&c,&cb,flag};(flag==2?out:flag==1?enter:inside).push_back(request);
    }

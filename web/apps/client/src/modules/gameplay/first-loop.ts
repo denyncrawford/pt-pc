@@ -130,7 +130,11 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     'gc_p01_081',
     'gc_p01_011',
     'gc_p01_020',
+    'gc_p01_021',
+    'gc_p01_010',
     'gc_p03_010',
+    'gc_p04_300',
+    'gc_p04_350',
   ]);
   try {
     const baseTangents = scene.tangents;
@@ -174,9 +178,14 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       ...baseLights,
       ...baseLights.map((l: any) => {
         const data = l.data.slice();
+        if (l.dynamic && !l.nativeSlot) {
+          data.fill(0, 4, 7);
+          data[7] = 0;
+          data[15] = 0;
+        }
         data.set(transformPoint(next, data.subarray(0, 3)), 0);
         data.set(transformPoint(next, data.subarray(8, 11), 0), 8);
-        return { name: 'next:' + l.name, data };
+        return { name: 'next:' + l.name, data, dynamic: !!l.nativeSlot };
       }),
     ];
     scene.probes = [
@@ -291,6 +300,21 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
           host.rebased = false;
           for (const { placement, owner } of nextOwners)
             w._world_owner_active(owner, w._scene_model_visible(placement.modelIndex) ? 1 : 0);
+        } else if (name === 'Play') {
+          if (
+            !ambient.play(
+              args[0],
+              ambient.players.get(args[0])?.origin ??
+                new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+            )
+          )
+            cycle.fail('Secuencia encadenada desconocida: ' + args[0]);
+        } else if (name === 'SetDemoTransform') {
+          const player = ambient.players.get(args[0]);
+          if (!player || args.length !== 8) throw Error('Transformación de secuencia inválida');
+          const m = rotation(args.slice(1, 5).map(Number));
+          m.set(args.slice(5).map(Number), 12);
+          player.origin = m;
         } else if (name === 'Skip') {
           if (!ambient.stop(args[0])) cycle.fail('Skip desconocido: ' + args[0]);
         } else if (name === 'SetCondition') {
@@ -308,6 +332,24 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         } else if (name === 'ChangeStageId' || name === 'UnloadStage') {
         } // Commit the coordinate-frame change after the camera track ends.
         else if (!host.audio?.command(name, args)) host.unsupported.add(name);
+      }
+      if (scene.updateNativeLighting?.()) {
+        // Keep the adjacent room's slots in the same authored lighting state.
+        baseLights.forEach((light: any, i: number) => {
+          if (!light.nativeSlot) return;
+          const clone = scene.lights[baseLights.length + i];
+          clone.dynamic = true;
+          clone.data.set(light.data);
+          clone.data.set(transformPoint(next, light.data.subarray(0, 3)), 0);
+          clone.data.set(transformPoint(next, light.data.subarray(8, 11), 0), 8);
+        });
+        baseProbes.forEach((probe: any, i: number) => {
+          const clone = scene.probes[baseProbes.length + i];
+          clone.dynamic = true;
+          clone.data.set(probe.data);
+          clone.data.set(multiply(probe.data.subarray(0, 16), inverse), 0);
+          clone.data.set(rotateSH(probe.data.subarray(24), next), 24);
+        });
       }
       if (w._script_command_count()) consume();
     }
@@ -338,6 +380,8 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     };
     host.collectMenuPhoto = () => {
       if (!w._scene_photo_collect_option()) return false;
+      host.audio?.postId?.(0xe4b855b2);
+      host.onPhotoCollected?.(256);
       consume();
       visibility();
       host.dirtyDoor = true;
@@ -348,7 +392,26 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       ambient.bindGroups(groups);
       visibility();
     };
-    host.tick = (position: any, yaw: any, move: any = [0, 0]) => {
+    host.tick = (position: any, yaw: any, move: any = [0, 0], zoomHeld = false) => {
+      const view = host.cameraPose;
+      if (view) {
+        const collected = w._events_view(
+          ...view.camera,
+          view.yaw,
+          view.pitch,
+          view.fov,
+          zoomHeld ? 1 : 0,
+          1 / 30,
+        );
+        if (collected) {
+          record('PhotoCollected', collected);
+          host.onPhotoCollected?.(collected);
+          host.audio?.postId?.(0xe4b855b2);
+          consume();
+          visibility();
+          host.dirtyDoor = true;
+        }
+      }
       for (const [name, on] of host.audio?.bgmStates || [])
         withString(w, name, (p: any) => w._script_bgm_state(p, on));
       if (cycle.phase === 'blocked') throw cycle.error;
@@ -383,9 +446,25 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
               continue;
             }
           } else if (host.floor === 'f030') {
-            host.blocking = ['Interacción de mirada y secuencia gc_p01_021 pendientes'];
-            record('pending', host.blocking[0]);
-            continue;
+            host.blocking = [...host.unsupported].map(
+              (name: string) => 'comando pendiente ' + name,
+            );
+            for (const id of ['gc_p01_021', 'gc_p01_010'])
+              if (ambient.players.get(id).state !== 'finished')
+                host.blocking.push('secuencia ' + id);
+            if (host.blocking.length) {
+              record('pending', host.blocking.join(', '));
+              w._event_retry(i);
+              continue;
+            }
+          } else if (host.floor === 'f040') {
+            host.blocking = [...host.unsupported];
+            if (ambient.players.get('gc_p04_350').state !== 'finished')
+              host.blocking.push('secuencia gc_p04_350');
+            if (host.blocking.length) {
+              w._event_retry(i);
+              continue;
+            }
           } else if (host.floor !== 'f010') {
             cycle.fail('Etapa fuera del hito: ' + host.floor);
           }
@@ -432,6 +511,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     };
     host.update = (dt: any) => {
       ambient.update(dt);
+      visibility();
       if (ambient.dirty) {
         host.dirtyDoor = true;
         ambient.dirty = false;
@@ -490,6 +570,11 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
           throw Error('No hay suelo original en el destino de la secuencia');
         // Coordinate handoff is not proof that every event of the source floor ran.
         cycle.transfer(() => {});
+        if (sourceFloor === 'f040') {
+          ambient.stop('gc_p04_300', { notify: false });
+          ambient.stop('gc_p04_350', { notify: false });
+        }
+        if (sourceFloor === 'f030') ambient.stop('gc_p03_010', { notify: false });
         if (sourceFloor === 'f020') {
           ambient.stop('gc_p04_340', { notify: false });
           ambient.update(0);
@@ -530,7 +615,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         visibility();
         record('transferred', sourceFloor + ' → ' + host.floor);
         host.audio?.finish();
-        if (['f005', 'f020'].includes(host.floor)) {
+        if (['f005', 'f020', 'f030', 'f040'].includes(host.floor)) {
           host.ready = false;
           host.active = false;
           const destination = w.UTF8ToString(w._script_next_floor());

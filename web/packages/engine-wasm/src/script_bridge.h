@@ -2,6 +2,7 @@
 // they are never acknowledged as completed events.
 #include "engine/script/lua_vm.h"
 #include <array>
+#include <glm/gtc/quaternion.hpp>
 static std::unique_ptr<pt::LuaVm> script_vm;
 static std::unordered_map<const pt::fox2::Entity*,bool> body_enabled;
 static std::unordered_map<std::string,bool> script_bgm;
@@ -21,7 +22,17 @@ static int ScriptLog(lua_State*){return 0;}
 static int ScriptFloor(lua_State* L){lua_pushboolean(L,script_floor==luaL_checkstring(L,1));return 1;}
 static void PushVec(lua_State* L,glm::vec3 v){lua_newtable(L);const char* keys[]={"x","y","z"};for(int k=0;k<3;k++){lua_pushnumber(L,v[k]);lua_setfield(L,-2,keys[k]);}}
 static int ScriptVector(lua_State* L){PushVec(L,{luaL_optnumber(L,1,0),luaL_optnumber(L,2,0),luaL_optnumber(L,3,0)});return 1;}
-static int ScriptTransform(lua_State* L){lua_newtable(L);PushVec(L,glm::vec3(stage->file->WorldTransform(*ScriptRef(L)->entity)[3]));lua_setfield(L,-2,"translation");return 1;}
+static int ScriptTransform(lua_State* L){
+ const auto m=stage->file->WorldTransform(*ScriptRef(L)->entity);const auto q=glm::quat_cast(glm::mat3(m));
+ lua_newtable(L);PushVec(L,glm::vec3(m[3]));lua_setfield(L,-2,"translation");
+ PushVec(L,{q.x,q.y,q.z});lua_pushnumber(L,q.w);lua_setfield(L,-2,"w");lua_setfield(L,-2,"rotQuat");PushVec(L,{glm::length(glm::vec3(m[0])),glm::length(glm::vec3(m[1])),glm::length(glm::vec3(m[2]))});lua_setfield(L,-2,"scale");return 1;
+}
+static int ScriptDemoTransform(lua_State* L){
+ ScriptCommand c{"SetDemoTransform",{luaL_checkstring(L,1)}};
+ for(int i=2;i<=3;i++){luaL_checktype(L,i,LUA_TTABLE);for(const char* k:{"x","y","z","w"}){if(i==3&&std::string(k)=="w")continue;lua_getfield(L,i,k);c.args.push_back(std::to_string(luaL_checknumber(L,-1)));lua_pop(L,1);}}
+ script_commands.push_back(std::move(c));return 0;
+}
+
 static int ScriptChildren(lua_State* L){const auto* e=ScriptRef(L)->entity;const auto& f=*stage->file;lua_newtable(L);auto p=f.FindProperty(*e,"children");for(size_t i=0;p&&i<p->Count();i++){auto child=f.ElementEntity(*p,i);if(!child)continue;PushScriptEntity(L,child);lua_setfield(L,-2,f.EntityName(*child).c_str());}return 1;}
 static void PushScriptElement(lua_State* L,const pt::fox2::Entity& e,const pt::fox2::Property& p,size_t i){
  const auto& f=*stage->file;using D=pt::fox2::DataType;
@@ -36,6 +47,7 @@ static int ScriptGet(lua_State* L){
  else if(key=="GetDataBodyWithReferrer"||key=="GetDataBody")lua_pushcfunction(L,ScriptBody);
  else if(key=="IsKindOf")lua_pushcfunction(L,ScriptKind);
  else if(key=="GetChildren")lua_pushcfunction(L,ScriptChildren);
+ else if(key=="worldTransform")return ScriptTransform(L);
  else if(key=="GetWorldTransform")lua_pushcfunction(L,ScriptTransform);
  else if(key=="SetupMessageBox")lua_pushcfunction(L,ScriptLog); // listeners are queried live, no cached subscriptions
  else if(r->body&&key=="enable")lua_pushboolean(L,BodyEnabled(r->entity,f.GetBool(*r->entity,"enable",0,true)));
@@ -66,6 +78,7 @@ static void ResetScriptHost(){
  ScriptRegister(L,"Fox","Log",ScriptLog);ScriptRegister(L,"Entity","IsNull",ScriptNull);ScriptRegister(L,"GameFloorLevel","IsCurrentFloorName",ScriptFloor);
  lua_pushcfunction(L,ScriptVector);lua_setglobal(L,"Vector3");
  for(const char* name:{"LoadStage","ActivateStage","ChangeStageId","UnloadStage"})ScriptRegisterCommand(L,"ShGameMainControl",name);
+ ScriptRegisterCommand(L,"DemoDaemon","Play");ScriptRegister(L,"DemoDaemon","SetDemoTransform",ScriptDemoTransform);
  ScriptRegisterCommand(L,"ShDemo","Skip");ScriptRegisterCommand(L,"ShNazoManager","SetCondition");
  ScriptRegister(L,"GameSystem","IsPlayingBGM",ScriptBgmPlaying);
  for(const char* name:{"CallBGM","StopBGM"}){ScriptRegisterCommand(L,"GameSystem",name);lua_getglobal(L,"GameSystem");lua_pushstring(L,name);lua_pushcclosure(L,ScriptBgmCommand,1);lua_setfield(L,-2,name);lua_pop(L,1);}

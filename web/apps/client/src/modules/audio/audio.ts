@@ -233,6 +233,9 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
       acoustics(objects: any) {
         if (started) send({ type: 'acoustics', objects });
       },
+      postId(id: number) {
+        if (started) send({ type: 'post-id', id });
+      },
       footstep(left: any, surface: any, position: any) {
         if (started) send({ type: 'footstep', left, surface, position });
       },

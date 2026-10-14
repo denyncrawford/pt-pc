@@ -35,6 +35,7 @@ export const files: Record<string, { path: string; mime: string }> = {
       'audio-worklet.js',
       'player-body.js',
       'postprocess.js',
+      'subliminal.js',
       'material-shading.js',
     ].map((name) => [
       name,

@@ -46,11 +46,18 @@ test(
     assert.equal(w._sequence_actor_kind(0), -1);
     const file = Bun.file(process.env.PT_TEST_PSARC),
       scene = await loadHallway(w, file, () => {}, { scripts: true });
-    assert.equal(scene.lights.length, 30);
+    assert.equal(scene.lights.filter((l: any) => l.data[16]).length, 30);
     assert.ok(
-      scene.lights.every((l: any) => l.name.includes('_ID60|') || l.name.includes('_clock|')),
+      scene.lights
+        .filter((l: any) => l.data[16])
+        .every((l: any) => l.name.includes('_ID60|') || l.name.includes('_clock|')),
     );
-    assert.equal(scene.probes.length, 63);
+    assert.equal(scene.probes.filter((p: any) => p.name).length, 63);
+    assert.equal(
+      scene.updateNativeLighting(),
+      false,
+      'unchanged presets do not rebuild adjacent SH',
+    );
     let clock = 0;
     const host = await prepareFirstLoop(w, scene, file);
     host.attachAudio({

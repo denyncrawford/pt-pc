@@ -27,6 +27,21 @@ export async function prepareDemoActors(
       players.set(id, player);
       player.models = new Map();
       player.origin = identity;
+      player.lights = new Map<string, { name: string; data: Float32Array; dynamic: boolean }>();
+      player.use(() => {
+        const count = w._sequence_lights(player.length, 0);
+        for (let i = 0; i < count; i++) {
+          const code = w._sequence_light_name(i).toString();
+          const data = w.HEAPF32.slice(
+            w._sequence_light_data(i) / 4,
+            w._sequence_light_data(i) / 4 + 28,
+          );
+          data[16] = 0;
+          const light = { name: id + ':' + code, data, dynamic: true };
+          player.lights.set(code, light);
+          scene.lights.push(light);
+        }
+      });
       for (const [name, path] of Object.entries<any>(meta.modelFiles)) {
         const read = resources.entries.get(path) || scene.entries.get(path);
         if (!read) throw Error('Modelo de secuencia ausente: ' + path);
@@ -44,7 +59,8 @@ export async function prepareDemoActors(
               skin = readSkin(bytes, count);
               player.use(() =>
                 withString(w, name, (np: any) => {
-                  if (!w._sequence_bind_model(np, p, n)) throw Error('Esqueleto de actor inválido');
+                  if (!w._sequence_bind_model(np, p, n))
+                    throw Error(`Esqueleto de actor inválido: ${id}/${name}`);
                 }),
               );
             }
@@ -142,17 +158,26 @@ export async function prepareDemoActors(
         a.visible = false;
       }
       p.play();
-      this.message?.(id, 'Play');
+      // Trap callbacks may enable demo listeners later in the same batch.
+      // Dispatch Play when execution begins, after the batch has been consumed.
+      p.pendingPlay = true;
       return true;
     },
     stop(id: any, { notify = true }: any = {}) {
       const p = players.get(id);
       if (!p) return false;
-      if (p.state !== 'playing') return true;
+      const wasPlaying = p.state === 'playing';
       p.stop();
-      for (const a of p.models.values()) a.visible = false;
+      for (const light of p.lights.values()) light.data[16] = 0;
+      p.pendingPlay = false;
+      for (const a of p.models.values()) {
+        a.created = false;
+        a.visible = false;
+      }
+      for (const g of groups) if (g.demoActor?.player === p) g.visible = false;
+      this.dirty = true;
       this.audio?.releaseEffects(id + ':');
-      if (notify) this.message?.(id, 'Skip');
+      if (notify && wasPlaying) this.message?.(id, 'Skip');
       return true;
     },
     update(dt: any) {
@@ -168,6 +193,10 @@ export async function prepareDemoActors(
       clock.advance(dt);
       for (const p of players.values())
         if (p.state === 'playing') {
+          if (p.pendingPlay) {
+            p.pendingPlay = false;
+            this.message?.(p.name, 'Play');
+          }
           p.update((e: any) => {
             const type = Number(e.type),
               arg = () => BigInt.asUintN(64, w._sequence_event_arg(e.index, 0)).toString(),
@@ -184,6 +213,8 @@ export async function prepareDemoActors(
             } else if (type === 0x3e09e7b9) {
               if (!actor) throw Error(`${p.name}: visibilidad sin modelo`);
               actor.visible = !!w._sequence_event_enabled(e.index);
+            } else if (w._sequence_light_event(e.index)) {
+              // Evaluated with native interpolation below at the shared sequence frame.
             } else if (e.functor === 0xba70c25c5ca2n) {
               const effect = resources.effect(
                 p.name,
@@ -214,24 +245,55 @@ export async function prepareDemoActors(
                   'Interrupt',
                   'Skip',
                   'Start',
+                  'PlayInit',
+                  'OpenDoor20',
+                  'hideOcho',
+                  'InvisibleStaticModel',
+                  'PadEnable',
+                  'DisableOption',
+                  'Endf120',
+                  'PlayRadio',
+                  'PlayGimmick',
+                  'enable_vfx_dust_glass',
+                  'enable_voice_breath',
+                  'GotoGameOver',
                 ].find((n: any) => resources.code(n) === code);
               if (!name) throw Error(`${p.name}: mensaje desconocido ${code}`);
               if (name === 'FinishMotion' && !p.finishSent) {
                 this.message?.(p.name, name);
                 p.finishSent = true;
+              } else if (
+                ![
+                  'FinishMotion',
+                  'Play',
+                  'PlayEnd',
+                  'Finish',
+                  'Interrupt',
+                  'Skip',
+                  'Start',
+                ].includes(name)
+              ) {
+                this.message?.(p.name, name);
               }
-            }
-            // Native DemoSystem retains these three screen-state commands; its renderer
-            // has no consumer for them. Keep them explicit as unresolved fidelity work.
-            else if (
-              p.name === 'gc_p02_510' &&
-              [0xd9ff1d14f050n, 0xe9bab696f1fcn, 0xc42eda2a5fbdn].includes(e.functor)
-            ) {
-              this.unresolved.add(p.name + ':' + e.functor.toString(16));
             } else if (e.functor !== 0n)
               throw Error(`${p.name} @${e.frame}: functor ${e.functor.toString(16)} obligatorio`);
             else if (![0xd3185dff, 0x966d8ec3, 0x3148f136, 0x2a36c514, 0xd2a6999a].includes(type))
               throw Error(`${p.name} @${e.frame}: evento ${type.toString(16)} obligatorio`);
+          });
+          p.use(() => {
+            const ptr = w._malloc(64);
+            try {
+              w.HEAPF32.set(p.origin, ptr / 4);
+              const count = w._sequence_lights(p.frame, ptr);
+              for (let i = 0; i < count; i++) {
+                const light = p.lights.get(w._sequence_light_name(i).toString());
+                const data = w._sequence_light_data(i) / 4;
+                light.data.set(w.HEAPF32.subarray(data, data + 28));
+                if (p.state !== 'playing') light.data[16] = 0;
+              }
+            } finally {
+              w._free(ptr);
+            }
           });
           for (const a of p.models.values())
             if (a.created) {

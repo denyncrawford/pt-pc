@@ -5,7 +5,7 @@ import { loadHallway, stepPlayer } from '../src/modules/gameplay/runtime';
 import { prepareFirstLoop } from '../src/modules/gameplay/first-loop';
 import { prepareLocatorSounds } from '../src/modules/audio/audio';
 test(
-  'walk original third loop f020 to its native destination',
+  'walk original f010 → f005 → f020 → f030 → f040 → f060 in three sessions',
   { skip: !process.env.PT_TEST_PSARC },
   async () => {
     const w = await create(),
@@ -17,6 +17,10 @@ test(
         host = await prepareFirstLoop(w, scene, file);
       let time = 0,
         sequenceBase = 0;
+      const f040Lights = new Set<string>(),
+        f040Probes = new Set<string>(),
+        f040Lisa = new Set<boolean>(),
+        f040Cries = new Set<string>();
       const sounds = [],
         commands = [];
       host.attachAudio({
@@ -48,6 +52,23 @@ test(
             host.tick([...p].slice(0, 3), Math.atan2(x, -z), [x, z]);
             host.update(1 / 30);
             locators.update();
+            if (host.floor === 'f040') {
+              for (const light of scene.lights)
+                if (light.nativeSlot && light.data[16])
+                  f040Lights.add(light.name.match(/_light_(ID\d+)\|/)?.[1]);
+              for (const probe of scene.probes)
+                if (probe.name) f040Probes.add(probe.name.match(/_light_(ID\d+)\|/)?.[1]);
+              const lisa = scene.placements.find((p: any) =>
+                p.name.endsWith('shsb_hous001_ocho001_0000'),
+              );
+              f040Lisa.add(!!w._scene_model_visible(lisa.modelIndex));
+              for (const locator of locators.items)
+                if (locator.visible) {
+                  const path = w.UTF8ToString(w._fx_locator_path(locator.index));
+                  if (path.includes('cry_') && sounds.includes(locator.node.play))
+                    f040Cries.add(path);
+                }
+            }
           }
           if (host.phase === 'sequence') return;
         }
@@ -162,6 +183,76 @@ test(
           locators.update();
         }
         assert.equal(host.ambient.players.get('gc_p01_020').state, 'finished');
+        const bathDoors = scene.placements.filter((p: any) => p.name.includes('door002_bathroom'));
+        assert.deepEqual(
+          bathDoors
+            .filter((p: any) => w._scene_model_visible(p.modelIndex))
+            .map((p: any) => p.name.split('|').at(-1)),
+          ['shsb_hous001_door002_bathroom_20'],
+          'opening replaces the closed bathroom leaf',
+        );
+        for (const door of bathDoors) {
+          const visible = !!w._scene_model_visible(door.modelIndex);
+          assert.ok(
+            host.groups
+              .filter((g: any) => !g.stage && !g.demoActor && g.modelIndex === door.modelIndex)
+              .every((g: any) => g.visible === visible),
+            'renderer follows native door visibility',
+          );
+        }
+
+        const scareTrap = Array.from({ length: w._trap_count() }, (_, n) => n).find((n) =>
+          w.UTF8ToString(w._trap_name(n)).endsWith('f030_demo|6_trap_demo_gc_p01_021'),
+        );
+        const targetLocator = Array.from({ length: w._locator_count() }, (_, n) => n).find((n) =>
+          w.UTF8ToString(w._locator_name(n)).endsWith('f030_demo|6_Locator_trap_check_dir'),
+        );
+        assert.notEqual(scareTrap, undefined);
+        assert.notEqual(targetLocator, undefined);
+        const trapMatrix = w._trap_box(scareTrap, 0) / 4;
+        const feet = [...w.HEAPF32.slice(trapMatrix + 12, trapMatrix + 15)];
+        feet[1] -= 0.8;
+        const targetMatrix = w._locator_matrix(targetLocator) / 4;
+        const foxYaw = Math.atan2(w.HEAPF32[targetMatrix + 8], w.HEAPF32[targetMatrix + 10]);
+        const viewYaw = Math.atan2(Math.sin(foxYaw), -Math.cos(foxYaw));
+        host.cameraPose = {
+          camera: [feet[0], feet[1] + 1.6, feet[2]],
+          yaw: viewYaw,
+          pitch: 0,
+          fov: 0.8,
+        };
+        host.tick(feet, viewYaw, [0, 0], false);
+        host.tick(feet, viewYaw + Math.PI, [0, 0], true);
+        assert.ok(!host.blocking.some((s: string) => s.includes('gc_p01_021')));
+        host.tick(feet, viewYaw, [0, 0], false);
+        host.tick(feet, viewYaw, [0, 0], true);
+        assert.equal(host.ambient.players.get('gc_p01_021').state, 'playing');
+        let sawLisa = false;
+        let sawLightPulse = false;
+        for (let i = 0; i < 1100; i++) {
+          time += 1 / 60;
+          host.update(1 / 60);
+          locators.update();
+          const scare = host.ambient.players.get('gc_p01_021');
+          sawLisa ||= [...scare.models.values()].some(
+            (actor: any) => actor.name.includes('och0') && actor.created && actor.visible,
+          );
+          sawLightPulse ||= [...scare.lights.values()].some(
+            (light: any) => light.data[16] > 0 && light.data[18] > 1,
+          );
+        }
+        assert.ok(sawLisa, 'Lisa is visible during the scare');
+        assert.ok(sawLightPulse, 'scare lights reach the renderer');
+        assert.equal(host.ambient.players.get('gc_p01_021').state, 'finished');
+        assert.equal(host.ambient.players.get('gc_p01_010').state, 'finished');
+        assert.equal(
+          bathDoors.filter((p: any) => w._scene_model_visible(p.modelIndex)).length,
+          1,
+          'one static bathroom leaf after the slam',
+        );
+        const openLobby = scene.placements.find((p: any) => p.name.endsWith('_lobby_open'));
+        assert.equal(w._scene_model_visible(openLobby.modelIndex), 1);
+        assert.equal(w._scene_model_visible(lobby.modelIndex), 0);
         assert.equal(host.ambient.players.get('gc_p03_010').state, 'playing');
         assert.ok(
           commands.some(
@@ -170,6 +261,42 @@ test(
         );
         assert.equal(host.unsupported.size, 0);
         assert.equal(host.floor, 'f030');
+        walk(-2, 0, 4000);
+        await exit();
+        assert.equal(host.floor, 'f040');
+        host.tick([...stepPlayer(w, 0, 0)].slice(0, 3), Math.PI, [0, 1]);
+        walk(0, 2, 1890);
+        walk(-2, 0, 4000);
+        assert.equal(host.ambient.players.get('gc_p04_350').state, 'finished');
+        assert.equal(host.unsupported.size, 0);
+        assert.ok(
+          scene.lights.some(
+            (light: any) =>
+              light.nativeSlot && light.name.includes('_light_ID30|') && light.data[16],
+          ),
+        );
+        await exit();
+        assert.equal(host.floor, 'f060');
+        assert.ok(
+          f040Lights.has('ID20') && f040Lights.has('ID30'),
+          'original light switch sequence',
+        );
+        assert.ok(
+          f040Probes.has('ID20') && f040Probes.has('ID30'),
+          'indirect lighting follows direct lighting',
+        );
+        assert.deepEqual([...f040Lisa].sort(), [false, true], 'Lisa appears and disappears');
+        assert.ok([...f040Cries].some((name) => name.includes('cry_s01')));
+        assert.ok([...f040Cries].some((name) => name.includes('cry_l01')));
+        for (const id of ['gc_p04_300', 'gc_p04_350']) {
+          const player = host.ambient.players.get(id);
+          assert.equal(player.state, 'stopped');
+          assert.ok(
+            [...player.models.values()].every((actor: any) => !actor.visible && !actor.created),
+          );
+        }
+        assert.equal(host.ambient.players.get('gc_p03_010').state, 'stopped');
+        assert.equal(host.unsupported.size, 0);
       } finally {
         locators.destroy();
         host.destroy();

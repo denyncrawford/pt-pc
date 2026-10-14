@@ -565,10 +565,12 @@ function frame(time: any) {
               fov: cameraFov,
               basis: cameraBasis,
             };
-            firstLoop.tick([...p].slice(0, 3), yaw, [
-              Math.sin(yaw) * z + Math.cos(yaw) * x,
-              -Math.cos(yaw) * z + Math.sin(yaw) * x,
-            ]);
+            firstLoop.tick(
+              [...p].slice(0, 3),
+              yaw,
+              [Math.sin(yaw) * z + Math.cos(yaw) * x, -Math.cos(yaw) * z + Math.sin(yaw) * x],
+              active && keys.has('Zoom'),
+            );
           } catch (e) {
             walking = false;
             fail(e);
@@ -599,6 +601,7 @@ function frame(time: any) {
     try {
       sceneLighting?.setTransition(firstLoop.ready && !firstLoop.rebased);
       const view = firstLoop.update(document.hidden ? 0 : dt);
+      if (sceneLighting?.updateDynamic()) refreshShadows = true;
       if (view) {
         camera = view.camera;
         yaw = view.yaw;
@@ -636,12 +639,16 @@ function frame(time: any) {
           view.opening
             ? 'Habitación inicial · acércate a la puerta para salir al pasillo'
             : firstLoop.completed
-              ? 'Recorrido completado hasta f030: f010 → f005 → f020 → f030. f030 sólo se presenta como destino; sus eventos aún no están implementados. La fidelidad visual sigue en revisión. Vuelve a Biblioteca para reiniciar.'
+              ? 'Recorrido verificado hasta la entrada de f060. Las etapas posteriores siguen en implementación.'
               : firstLoop.floor === 'f030'
-                ? 'Etapa f030 · puertas y eventos iniciales activos. Interacción de mirada del baño y salida a f040 en implementación.'
-                : 'Etapa ' +
-                  firstLoop.floor +
-                  '. Retrocede tras encontrar las cucarachas para activar el evento del baño antes de volver a la salida. Reloj y audio originales activos.',
+                ? 'Etapa f030 · mira por la abertura del baño usando zoom para activar su evento original.'
+                : firstLoop.floor === 'f040'
+                  ? 'Etapa f040 · eventos, luces y salida originales activos.'
+                  : firstLoop.floor === 'f060'
+                    ? 'Etapa f060 · sus secuencias están pendientes de integración.'
+                    : 'Etapa ' +
+                      firstLoop.floor +
+                      '. Retrocede tras encontrar las cucarachas para activar el evento del baño antes de volver a la salida. Reloj y audio originales activos.',
         );
       }
     } catch (e) {
@@ -1374,6 +1381,7 @@ async function prepareSession(
     candidate.body = await createPlayerBody(device, w, file, qar, texturedPipeline, () => {});
     onProgress(6, 7);
     candidate.post = await createPost(device, outputFormat, await preparePost(w, file, qar));
+    candidate.loop.onPhotoCollected = (bit: number) => candidate.post.triggerPhoto(bit);
     onProgress(7, 7);
     if (candidate.audioError) throw candidate.audioError;
     return candidate;
@@ -1417,7 +1425,7 @@ function installSession(c: any) {
   status(
     firstLoop.opening
       ? 'Habitación inicial · despertar y salida original al pasillo'
-      : 'Pasillo original · f010 → f005 → f020 → f030',
+      : 'Pasillo original · f010 → f005 → f020 → f030 → f040 → f060',
   );
   document.documentElement.dataset.sessionResources = JSON.stringify({
     ...device.resourceSnapshot(),

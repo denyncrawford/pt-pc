@@ -103,6 +103,9 @@ class OriginalAudio extends AudioWorkletProcessor {
         if (m.bgm) this.bgm.add(m.name.replace(/^Stop_/, 'Play_'));
         const id = ascii(w, m.name, (p: any) => w._audio_post(p, ...m.position, m.spatial ? 1 : 0));
         if (!id) throw Error(w.UTF8ToString(w._audio_error()));
+      } else if (m.type === 'post-id') {
+        if (!Number.isInteger(m.id) || !w._audio_schedule(m.id, 0))
+          throw Error('Missing original sound event ' + m.id);
       } else if (m.type === 'ambience') {
         const a = m.area;
         if (

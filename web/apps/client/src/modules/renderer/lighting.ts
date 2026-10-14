@@ -245,6 +245,7 @@ export async function createLighting(device: any) {
         lightData.set([lights.length, 1, 1, layers, ...probe, probes.length]);
         lights.forEach((l: any, i: any) => {
           lightData.set(l.data, 8 + i * 28);
+          if (l.dynamic && !l.data[16]) lightData.fill(0, 8 + i * 28 + 4, 8 + i * 28 + 7);
           lightData[8 + i * 28 + 16] = l.data[15] ? shadowLights.indexOf(l) : -1;
         });
         const buffer = keep(
@@ -411,6 +412,7 @@ export async function createLighting(device: any) {
           },
         });
         const encoder = device.createCommandEncoder();
+        const shadowUniforms: GPUBuffer[] = [];
         const shadowGroups = Array.from({ length: layers }, (_: any, layer: any) => {
           const ub = keep(
             device.createBuffer({
@@ -418,6 +420,7 @@ export async function createLighting(device: any) {
               usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
             }),
           );
+          shadowUniforms.push(ub);
           device.queue.writeBuffer(ub, 0, matrices.subarray(layer * 16, layer * 16 + 16));
           return device.createBindGroup({
             layout: sl,
@@ -566,6 +569,54 @@ export async function createLighting(device: any) {
         if (validation) throw Error(validation.message);
         return {
           transition: true,
+          updateDynamic() {
+            let changed = false;
+            lights.forEach((light: { data: Float32Array; dynamic?: boolean }, i: number) => {
+              if (!light.dynamic) return;
+              let lightChanged = false;
+              const offset = 8 + i * 28;
+              const shadowIndex = light.data[15] ? shadowLights.indexOf(light) : -1;
+              for (let k = 0; k < 28; k++) {
+                const value =
+                  k === 16 ? shadowIndex : k >= 4 && k <= 6 && !light.data[16] ? 0 : light.data[k];
+                if (lightData[offset + k] !== value) {
+                  lightData[offset + k] = value;
+                  changed = true;
+                  lightChanged = true;
+                }
+              }
+              if (lightChanged && shadowIndex >= 0)
+                for (let face = 0; face < 6; face++) {
+                  const layer = shadowIndex * 6 + face;
+                  const matrix = faceMatrix(
+                    light.data.slice(0, 3),
+                    face,
+                    Math.max(1, light.data[3]),
+                  );
+                  matrices.set(matrix, layer * 16);
+                  device.queue.writeBuffer(shadowUniforms[layer], 0, matrix);
+                }
+            });
+            let probesChanged = false;
+            probes.forEach((probe: { data: Float32Array; dynamic?: boolean }, i: number) => {
+              if (!probe.dynamic) return;
+              for (let k = 0; k < 60; k++)
+                if (pd[i * 60 + k] !== probe.data[k]) {
+                  pd[i * 60 + k] = probe.data[k];
+                  probesChanged = true;
+                }
+            });
+            if (probesChanged) {
+              device.queue.writeBuffer(pb, 0, pd);
+              captureDirty = true;
+            }
+            if (changed) {
+              device.queue.writeBuffer(buffer, 0, lightData);
+              device.queue.writeBuffer(mb, 0, matrices);
+              captureDirty = true;
+            }
+            return changed;
+          },
           setTransition(active: any) {
             if (this.transition === active) return;
             this.transition = active;
@@ -777,4 +828,94 @@ export function mirrorPlane(vertices: any, indices: any, groups: any) {
         throw Error('El espejo original no es plano');
     }
   return plane;
+}
+
+interface NativeLightingBridge {
+  HEAPF32: Float32Array;
+  UTF8ToString(ptr: number): string;
+  _light_count(): number;
+  _light_name(index: number): number;
+  _light_data(index: number): number;
+  _probe_enabled(index: number): number;
+}
+interface NativeProbe {
+  name: string;
+  priority: number;
+  data: Float32Array;
+  nativeIndex: number;
+}
+// Authored ID presets are mutually exclusive; clock/non-preset resources coexist.
+// Reserve the largest preset, then move enabled resources into stable GPU slots.
+export function createNativeLighting(w: NativeLightingBridge, sourceProbes: NativeProbe[]) {
+  const sourceLights = Array.from({ length: w._light_count() }, (_, index) => {
+    const ptr = w._light_data(index) / 4;
+    return { name: w.UTF8ToString(w._light_name(index)), index, shadow: !!w.HEAPF32[ptr + 15] };
+  });
+  const capacity = (items: { name: string }[]) => {
+    const counts = new Map<string, number>();
+    let common = 0;
+    for (const item of items) {
+      const preset = item.name.match(/_light_(ID\d+)\|/)?.[1];
+      if (preset) counts.set(preset, (counts.get(preset) ?? 0) + 1);
+      else common++;
+    }
+    return common + Math.max(0, ...counts.values());
+  };
+  const shadowCount = capacity(sourceLights.filter((l) => l.shadow));
+  const plainCount = capacity(sourceLights.filter((l) => !l.shadow));
+  const lights = Array.from({ length: shadowCount + plainCount }, (_, index) => {
+    const data = new Float32Array(28);
+    data[3] = 1;
+    data[15] = Number(index < shadowCount);
+    return { name: '', data, dynamic: true, nativeSlot: true };
+  });
+  const probes = Array.from({ length: capacity(sourceProbes) }, () => ({
+    name: '',
+    priority: 0,
+    data: new Float32Array(60),
+    dynamic: true,
+  }));
+  function update() {
+    let changed = false,
+      shadow = 0,
+      plain = shadowCount;
+    for (const source of sourceLights) {
+      const ptr = w._light_data(source.index) / 4;
+      const data = w.HEAPF32.subarray(ptr, ptr + 28);
+      if (!data[16] || data[18] <= 0 || data[3] <= 0) continue;
+      const index = source.shadow ? shadow++ : plain++;
+      if ((source.shadow && index >= shadowCount) || index >= lights.length)
+        throw Error('Overlapping native light presets exceed reserved slots');
+      const slot = lights[index];
+      if (slot.name !== source.name || slot.data.some((value, i) => value !== data[i])) {
+        slot.data.set(data);
+        slot.name = source.name;
+        changed = true;
+      }
+    }
+    lights.forEach((slot, i) => {
+      if ((i >= shadow && i < shadowCount) || i >= plain) {
+        changed ||= !!slot.data[16];
+        slot.data[16] = 0;
+        slot.name = '';
+      }
+    });
+    const active = sourceProbes
+      .filter((p) => w._probe_enabled(p.nativeIndex))
+      .sort((a, b) => b.priority - a.priority);
+    if (active.length > probes.length)
+      throw Error('Overlapping native probe presets exceed reserved slots');
+    probes.forEach((slot, i) => {
+      const source = active[i],
+        name = source?.name ?? '';
+      if (slot.name === name) return;
+      slot.name = name;
+      slot.data.fill(0);
+      if (source) slot.data.set(source.data);
+      changed = true;
+    });
+    return changed;
+  }
+  update();
+  return { lights, probes, update };
 }

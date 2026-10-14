@@ -62,7 +62,7 @@ EMSCRIPTEN_KEEPALIVE int sequence_resident_bytes(){return residentBytes();}
 EMSCRIPTEN_KEEPALIVE int sequence_length(){return current().stream?current().stream->Length():0;}
 EMSCRIPTEN_KEEPALIVE int sequence_player_skeleton(const uint8_t* bytes,int size){return size>0&&size<32*1024*1024&&pt::anim::ReadFmdlSkeleton({bytes,size_t(size)},playerSkeleton);}
 EMSCRIPTEN_KEEPALIVE int sequence_bind_model(const char* name,const uint8_t* bytes,int size){
- if(!name||size<=0||size>32*1024*1024||current().skeletons.size()>=16)return 0;
+ if(!name||size<=0||size>32*1024*1024||(!current().skeletons.contains(name)&&current().skeletons.size()>=256))return 0;
  pt::anim::Skeleton next;if(!pt::anim::ReadFmdlSkeleton({bytes,size_t(size)},next)||next.Size()>256)return 0;current().skeletons[name]=std::move(next);return 1;
 }
 EMSCRIPTEN_KEEPALIVE int sequence_model_skin(const char* name,float frame,const float* origin){
@@ -118,3 +118,5 @@ EMSCRIPTEN_KEEPALIVE float sequence_event_float(int i,uint32_t key){return curre
 EMSCRIPTEN_KEEPALIVE float sequence_focal(float frame){if(!current().stream||!std::isfinite(frame)||frame<0||frame>current().stream->Length())return 0;const auto i=current().stream->FindActor(pt::anim::ActorKind::CameraParam);if(i<0)return 0;const auto& u=current().stream->Actors().at(i).units;if(u.empty()||u[0].tracks.empty())return 0;glm::vec4 v;return current().tracks.at(u[0].tracks[0]).Sample(frame,v)?v.x:0;}
 EMSCRIPTEN_KEEPALIVE uint32_t sequence_event_sound(int i){if(i<0||size_t(i)>=current().events.size())return 0;const auto& e=*current().events[i];if(e.functor!=0x1CA12DC9F6C4ull&&e.functor!=0x436C48773668ull&&e.functor!=0xD0044B945DC2ull&&e.functor!=0x222ADA450A7Dull)return 0;const uint32_t id=e.Int(e.functor==0x222ADA450A7Dull?0xBD0B148A:0xE715467F,0);return id==0x811C9DC5u?0:id;}
 }
+
+#include "sequence_lights.h"

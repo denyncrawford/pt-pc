@@ -73,6 +73,21 @@ test(
         ),
       ];
       assert.equal(roaches.length, 2);
+      assert.deepEqual(roaches.map((a: any) => a.name).sort(), [
+        'HM_coc0_main0_def1',
+        'HM_coc0_main0_def2',
+      ]);
+      assert.notEqual(roaches[0].index, roaches[1].index, 'distinct authored root tracks');
+      assert.ok(
+        roaches[0].first + roaches[0].count <= roaches[1].first,
+        'independent vertex ranges',
+      );
+      const roachGroups = scene.groups.filter((g: any) => roaches.includes(g.demoActor));
+      assert.equal(
+        new Set(roachGroups.map((g: any) => g.first)).size,
+        roachGroups.length,
+        'each mesh draw occurs once',
+      );
       let sampleA, sampleB;
       let end;
       for (let i = 0; i < 1500; i++) {

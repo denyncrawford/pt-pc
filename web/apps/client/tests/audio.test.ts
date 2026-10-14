@@ -114,6 +114,15 @@ test(
     assert.ok(openingPower > 0, 'stand-up audio produces non-silent PCM');
     w._audio_stop();
     for (let i = 0; i < 400; i++) w._audio_render(256);
+    assert.equal(w._audio_schedule(0xe4b855b2, 0), 1, 'native photo collection sound exists');
+    let photoPower = 0;
+    for (let t = 0; t < 2 * 48000; t += 256) {
+      const p = w._audio_render(256) / 4;
+      for (let i = 0; i < 512; i++) photoPower += w.HEAPF32[p + i] ** 2;
+    }
+    assert.ok(photoPower > 0, 'photo collection sound produces PCM');
+    w._audio_stop();
+    for (let i = 0; i < 400; i++) w._audio_render(256);
     assert.equal(w._audio_schedule(0, 1), 0);
     assert.equal(w._audio_render(3000), 0);
     const g = await createGeometry({

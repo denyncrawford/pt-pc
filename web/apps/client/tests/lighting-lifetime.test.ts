@@ -66,7 +66,7 @@ test('single-room lighting survives transitions; paired stages retire only their
     for (const paired of [false, true]) {
       writes.clear();
       const lights = Array.from({ length: 6 }, () => ({ data: new Float32Array(28) })),
-        probes = Array.from({ length: 2 }, () => ({ data: new Float32Array(60) }));
+        probes = Array.from({ length: 2 }, () => ({ data: new Float32Array(60), dynamic: true }));
       const scene = await lighting.prepare(
         mesh,
         {},
@@ -83,6 +83,13 @@ test('single-room lighting survives transitions; paired stages retire only their
       scene.setTransition(true);
       assert.equal(writes.get(buffer)[0], 6);
       assert.equal(writes.get(buffer)[7], 2);
+      const probeBuffer = [...writes].find(([, data]: any) => data.length === 120)[0];
+      probes[0].data[24] = 0.75;
+      scene.updateDynamic();
+      assert.equal(writes.get(probeBuffer)[24], 0.75, 'changed native SH reaches GPU buffer');
+      probes[0].data.fill(0);
+      scene.updateDynamic();
+      assert.equal(writes.get(probeBuffer)[24], 0, 'disabled probe leaves no residual light');
       scene.finishTransition();
       assert.equal(writes.get(buffer)[0], paired ? 3 : 6);
       assert.equal(writes.get(buffer)[7], paired ? 1 : 2);

@@ -1,3 +1,4 @@
+import { createSubliminal } from '../effects/subliminal';
 import { Psarc, parseFpk, fpkEntry, unwrap } from '../../lib/archives';
 import { withEntry, withString } from '../gameplay/runtime';
 import { loadFtex } from './materials';
@@ -67,7 +68,14 @@ export async function preparePost(w: any, file: any, qar: any) {
   const s = floors.f010,
     path = s.luts.common_saturation_a,
     t = await loadFtex(qar, path, Infinity, { volume: true, strict: true });
-  return { floors, lut: buildColorLut(t, s), path, parameter };
+  const subliminal = await Promise.all(
+    [
+      ...[1, 2, 3, 4].map((i) => `/Assets/sh/effect/vfx_pic/text/text_sub0${i}_alp`),
+      '/Assets/sh/effect/vfx_pic/noise/Noise_00007',
+      '/Assets/sh/effect/vfx_pic/noise/Noise_00007_nrm',
+    ].map((path) => loadFtex(qar, path, Infinity, { strict: true })),
+  );
+  return { floors, lut: buildColorLut(t, s), path, parameter, subliminal };
 }
 const common = `
 struct Settings{range:vec4<f32>,comp:vec4<f32>,ev:vec4<f32>,bloom:vec4<f32>};
@@ -163,7 +171,11 @@ export async function createPost(device: any, format: any, resources: any) {
     shaded,
     normal,
     hits,
-    reflected;
+    reflected,
+    composed;
+  const subliminal = resources.subliminal
+    ? createSubliminal(device, format, resources.subliminal)
+    : undefined;
   const usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
   const tex = (w: any, h: any, format: any = 'rgba16float') => {
     const t = device.createTexture({ size: [w, h], format, usage });
@@ -278,6 +290,7 @@ export async function createPost(device: any, format: any, resources: any) {
     let destroyed = false;
     return {
       brightness: 1,
+      triggerPhoto: (bit: number) => subliminal?.trigger(bit),
       resize(w: any, h: any) {
         if (width === w && height === h) return;
         width = w;
@@ -285,6 +298,7 @@ export async function createPost(device: any, format: any, resources: any) {
         for (const t of targets) t.destroy();
         targets.length = 0;
         partial?.destroy();
+        if (subliminal) composed = tex(w, h, format);
         hdr = tex(w, h);
         diffuse = tex(w, h);
         ao = tex(w, h, 'r8unorm');
@@ -316,6 +330,7 @@ export async function createPost(device: any, format: any, resources: any) {
         return diffuse.createView();
       },
       reset() {
+        subliminal?.reset();
         device.queue.writeBuffer(state, 0, new Float32Array([0, 0.012, 0, 0]));
       },
       render(
@@ -432,17 +447,20 @@ export async function createPost(device: any, format: any, resources: any) {
           draw('kawase', b, a.createView(), passes[i]);
           draw('add', a, sum.createView(), passes[i], i > 0);
         }
-        draw('compose', reflected, destination);
+        draw('compose', reflected, subliminal ? composed.createView() : destination);
+        subliminal?.render(encoder, composed, destination, dt);
       },
       destroy() {
         if (destroyed) return;
         destroyed = true;
+        subliminal?.destroy();
         for (const t of targets) t.destroy();
         partial?.destroy();
         for (const r of keep) r.destroy();
       },
     };
   } catch (e) {
+    subliminal?.destroy();
     for (const t of targets) t.destroy();
     partial?.destroy();
     for (const r of keep) r.destroy();

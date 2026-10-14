@@ -1,4 +1,4 @@
-import { selectLights, parseLpsh, mirrorPlane } from '../renderer/lighting';
+import { selectLights, parseLpsh, mirrorPlane, createNativeLighting } from '../renderer/lighting';
 import { readMaterials } from '../renderer/materials';
 import { Psarc, parseFpk, fpkEntry, MAX_ENTRY } from '../../lib/archives';
 export function withEntry(wasm: any, bytes: any, name: any, fn: any) {
@@ -250,7 +250,7 @@ export async function loadHallway(
     files = new Map();
   for (let i = 0; i < wasm._probe_count(); i++) {
     const name = wasm.UTF8ToString(wasm._probe_name(i));
-    if (scripts ? !wasm._probe_enabled(i) : !name.includes('_light_ID10|')) continue;
+    if (!scripts && !name.includes('_light_ID10|')) continue;
     const ptr = wasm._probe_data(i);
     if (!ptr) throw Error('Volumen de sonda inválido: ' + name);
     const meta = wasm.HEAPF32.slice(ptr / 4, ptr / 4 + 24),
@@ -272,11 +272,14 @@ export async function loadHallway(
     data.set(meta.slice(19, 22), 20);
     data.set(sh, 24);
     if (!data.every(Number.isFinite)) throw Error('Sonda no finita');
-    probes.push({ name, priority: meta[22], dark: !!meta[23], data });
+    probes.push({ name, nativeIndex: i, priority: meta[22], dark: !!meta[23], data });
   }
-  if (!probes.length || probes.length > 256) throw Error('Cantidad de sondas incompatible');
+  if (!probes.length || (!scripts && probes.length > 256))
+    throw Error('Cantidad de sondas incompatible');
   probes.sort((a: any, b: any) => b.priority - a.priority);
+  const nativeLighting = scripts ? createNativeLighting(wasm, probes) : undefined;
   return {
+    updateNativeLighting: nativeLighting?.update,
     entries: scripts ? entries : undefined,
     placements,
     pendingCollisions,
@@ -287,8 +290,8 @@ export async function loadHallway(
     groups,
     collisionCount,
     spawn,
-    lights: selectLights(wasm, scripts ? null : 'ID10'),
-    probes,
+    lights: nativeLighting?.lights ?? selectLights(wasm, 'ID10'),
+    probes: nativeLighting?.probes ?? probes,
     mirrorPlane: kind === 'start' ? null : mirrorPlane(vertices, indices, groups),
   };
 }
