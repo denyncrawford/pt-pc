@@ -17,13 +17,5 @@
     "strict": false,
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx"
-  },
-  "include": [
-    "web/**/*.ts",
-    "web/**/*.tsx"
-  ],
-  "exclude": [
-    "web/client/dist",
-    "node_modules"
-  ]
+  }
 }

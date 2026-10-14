@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+@source '../';
+@source '../../index.html';
+
+@layer base {
+  body {
+    margin: 0;
+    background: #050606;
+  }
+  button,
+  select,
+  input {
+    font: inherit;
+  }
+  button,
+  label:has(input[type='file']) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: wait;
+    opacity: 0.5;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}

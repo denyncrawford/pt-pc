@@ -1,0 +1,7 @@
+{
+  "name": "@pt-web/engine-wasm",
+  "private": true,
+  "scripts": {
+    "build": "bash scripts/build.sh"
+  }
+}

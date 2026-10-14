@@ -4,22 +4,21 @@
   "type": "module",
   "packageManager": "bun@1.4.3",
   "scripts": {
-    "dev": "bun web/server/dev.ts",
-    "test": "bun test web/server/*.test.ts web/client/tests",
-    "build:wasm": "bash web/build.sh",
-    "build": "bun web/web-build.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.strict.json",
-    "audit:publication": "python3 tools/web/audit-publication.py"
+    "dev": "bun run --cwd web/apps/server dev",
+    "test": "bun test --timeout 120000 web/apps/server/tests/*.test.ts web/apps/client/tests",
+    "build:wasm": "bun run --cwd web/packages/engine-wasm build",
+    "build": "bun run --cwd web/apps/client build",
+    "typecheck": "bun run --cwd web/apps/client typecheck && bun run --cwd web/apps/server typecheck",
+    "audit:publication": "python3 tools/web/audit-publication.py",
+    "fmt": "prettier --write web",
+    "fmt:check": "prettier --check web"
   },
+  "workspaces": [
+    "web/apps/*",
+    "web/packages/*"
+  ],
   "devDependencies": {
-    "@types/bun": "^1.4.3",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@webgpu/types": "^0.1.74",
+    "prettier": "^3.9.10",
     "typescript": "5.9.3"
-  },
-  "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
   }
 }
