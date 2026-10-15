@@ -26,6 +26,7 @@ test('single-room lighting survives transitions; paired stages retire only their
     live.add(r);
     return r;
   };
+  let shadowPasses = 0;
   const pass = () => ({
     setPipeline() {},
     setBindGroup() {},
@@ -54,7 +55,10 @@ test('single-room lighting survives transitions; paired stages retire only their
     createRenderPipelineAsync: async () => ({}),
     createComputePipelineAsync: async () => ({ getBindGroupLayout: () => ({}) }),
     createCommandEncoder: () => ({
-      beginRenderPass: pass,
+      beginRenderPass: (descriptor: { colorAttachments: unknown[] }) => {
+        if (!descriptor.colorAttachments.length) shadowPasses++;
+        return pass();
+      },
       beginComputePass: pass,
       finish: () => ({}),
     }),
@@ -63,9 +67,28 @@ test('single-room lighting survives transitions; paired stages retire only their
     const lighting = await createLighting(device),
       mesh = { surface: { groups: [] } },
       pipeline = { getBindGroupLayout: () => ({}) };
+    // The renderer reserves a placeholder depth layer even without shadow lights.
+    const unshadowed = await lighting.prepare(
+      mesh,
+      {},
+      pipeline,
+      [{ data: new Float32Array(28) }],
+      [],
+      null,
+    );
+    unshadowed.refreshShadows(device.createCommandEncoder());
+    unshadowed.destroy();
+    assert.equal(live.size, 0);
     for (const paired of [false, true]) {
       writes.clear();
-      const lights = Array.from({ length: 6 }, () => ({ data: new Float32Array(28) })),
+      const lights = Array.from({ length: 6 }, () => {
+          const data = new Float32Array(28);
+          data[3] = 8;
+          data[4] = 1;
+          data[15] = 1;
+          data[16] = 1;
+          return { data, dynamic: true };
+        }),
         probes = Array.from({ length: 2 }, () => ({ data: new Float32Array(60), dynamic: true }));
       const scene = await lighting.prepare(
         mesh,
@@ -90,6 +113,16 @@ test('single-room lighting survives transitions; paired stages retire only their
       probes[0].data.fill(0);
       scene.updateDynamic();
       assert.equal(writes.get(probeBuffer)[24], 0, 'disabled probe leaves no residual light');
+      // A disabled lamp contributes no shadow passes; re-enabling it restores
+      // all six faces before rendering, including when geometry changes.
+      for (const enabled of [false, true]) {
+        lights[0].data[16] = Number(enabled);
+        assert.equal(scene.updateDynamic(), true);
+        assert.equal(writes.get(buffer)[12], enabled ? 1 : 0);
+        shadowPasses = 0;
+        scene.refreshShadows(device.createCommandEncoder());
+        assert.equal(shadowPasses, enabled ? 36 : 30);
+      }
       scene.finishTransition();
       assert.equal(writes.get(buffer)[0], paired ? 3 : 6);
       assert.equal(writes.get(buffer)[7], paired ? 1 : 2);

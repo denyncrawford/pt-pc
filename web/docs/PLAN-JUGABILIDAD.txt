@@ -1,0 +1,66 @@
+PLAN DE IMPLEMENTACIÓN — CONTINUIDAD Y RENDIMIENTO
+Actualizado: 2026-10-14
+Estado: en ejecución; entregas 0 y 1 parciales, 2–5 pendientes. Sustituye el orden de próximas entregas de las entradas históricas del roadmap; no modifica sus evidencias.
+
+OBJETIVO
+Recorrido completo f000 → f010 → f005 → f020 → f030 → f040 → f060 → f050 → f070 → f080 → f090 → f100 → f110 → f120 → f160 → ending, según src/game/floor_order.h. Conservar eventos, assets, audio y menú originales; bun dev y wizard; reanudación por vuelta y reinicio solo explícito. No confundir llegar a un floor con completarlo.
+
+0. ESTABILIZAR f040 Y LA FRONTERA f060 — EN CURSO
+Evidencia: el usuario alcanza la aparición de cuerpo completo, desaparición y encendido de luz, pero no ve a Lisa; posteriormente atraviesa una puerta. Las pruebas existentes solo certifican flags/órdenes, no píxeles. f060 no está implementada y su reanudación falla en gc_p03_070.
+Acciones:
+- Confirmar floor y trigger mediante trazas de la misma ruta, sin asumir la etapa solo por el número de vueltas contado por el usuario.
+- Seguir Lisa desde evento nativo → visibilidad/transformación → selección de mallas/materiales → buffers → draw call → profundidad/sombras. Revisar también descarte y orden de actualización antes de atribuirlo a iluminación.
+- Probar el encuadre desde el trayecto normal, no solo una cámara colocada directamente ante el actor. Comparar antes, durante y después de la aparición con el renderer nativo.
+- Auditar puerta del lobby, puerta de salida y hojas animadas por separado: visibilidad, propietario de colisión, callbacks y transferencia. Una puerta cerrada no puede atravesarse; abrir exige el evento original y una única hoja coherente.
+- Hacer la transferencia transaccional: validar dependencias y destino antes de cambiar floor, colisión o checkpoint. StageCycle.prepare actualmente puede preparar solo un identificador; sustituir esa garantía insuficiente por preparación real. Un fallo conserva la etapa y guardado de origen y permite reintento. Conservar checkpoints f060 existentes, sin borrarlos ni retrocederlos silenciosamente.
+Cierre: Lisa comprobada en render real; colisión cerrada/abierta y paso de umbral verificadas; fallo de preparación y recarga no dejan al usuario en un destino incompleto. Actualizar etiqueta de f040: lógica verificada, presentación en curso.
+
+1. MEDIR Y CORREGIR TIRONES — EN CURSO, JUNTO CON LA ENTREGA 0
+No hay mediciones suficientes para identificar la causa. Hipótesis a comprobar: preparación/decodificación en trigger, subidas de geometría, compilación de pipelines, actualización masiva de sombras/sondas y trabajo de animación.
+- Instrumentar marcas por floor/evento: lectura por rangos, descompresión, parseo WASM, preparación de actores, audio, texturas/buffers, pipelines, sombras y capturas de reflejos. Registrar CPU, tareas largas y GPU cuando timestamp-query esté disponible, sin bloquear esperando GPU en cada frame.
+- Ruta reproducible: tramo estable, final del pasillo, activación de animación y transferencia; separar primera ejecución de repetición con caché. Registrar hardware, resolución, ajustes, tiempo de carga, frame time p50/p95/p99, peor frame, frames >33/50/100 ms y recursos vivos.
+- Optimizar primero el cuello medido. Preparar dependencias de etapa activa y siguiente con antelación; deduplicar solicitudes y cancelar trabajo obsoleto. Cachear recursos inmutables compartidos, liberar los exclusivos al retirar la etapa.
+- Sacar trabajo pesado de frames críticos: tareas/worker para parseo compatible, subidas GPU por lotes, pipelines preparados antes del evento. Actualizar sombras/sondas por cambios relevantes, conservando luces y reflejos animados correctos; evitar recalcular toda la escena por un cambio local.
+- No disminuir assets, resolución de texturas ni eliminar efectos como solución silenciosa. Presupuesto inicial para máquina de referencia: 60 FPS/16,7 ms como objetivo, p95 <=20 ms y ningún bloqueo repetible >50 ms causado por preparar eventos tras precarga. Ajustar objetivos explícitamente tras la línea base, sin presentarlos como resultados obtenidos.
+Cierre: informe antes/después con mismos ajustes/ruta; tres ciclos carga → recorrido → descarga sin acumulación de GPU/audio/instancias. Heap reservado separado de memoria viva. Ningún test visible toma el control del escritorio; pruebas gráficas en navegador aislado/headless, y ejecución visible solo a petición.
+
+2. COMPLETAR f060 → f050 — EN CURSO
+Inventario inicial confirmado por código nativo: gc_p03_070, gc_p03_011, gc_p01_110, gc_p00_030 → gc_p01_050, gc_p01_090, gc_p01_020 reutilizada y gc_p01_022.
+- Construir matriz por condición FOX2/Lua/FSM: prerrequisitos, disparador, actores, cámara/control, luz, audio, puertas/colisión, finalización y sucesor.
+- Implementar dependencias faltantes, control de cámara/jugador, alternancias de hojas del baño, babycry03 y BGM herald01/baby_motion; verificar orden y concurrencia nativos. No habilitar IDs sin consumidores funcionales.
+- Precargar solo recursos requeridos para esta etapa y la próxima; reutilizar reproductores y materiales con propiedad y destrucción explícitas.
+- Completar reanudación f060 desde checkpoint y salida original a f050. Verificar pausa/reintento/recarga durante cada secuencia sin duplicar actores ni sonido.
+Cierre: recorrido desde f040 y arranque directo desde checkpoint f060, apariciones visibles, sonidos programados, salida autorizada y restauración de f050. Cero comandos obligatorios sin implementar.
+
+3. f050 → f070 → f080 → f090 → f100 → f110 — PENDIENTE
+Trabajar una etapa completa por entrega, en orden nativo. Referencias iniciales del archivo: gc_p04_320 (f050), gc_p04_120/gc_p04_280 (f070), gc_p02_520 (f080), gc_p02_090 (f110). No son un inventario completo; f090/f100 requieren revisión de scripts/condiciones aunque no tengan una entrada de cinemática en archive.cpp.
+Por etapa: extraer la matriz de eventos y reglas, implementar apariciones/interacciones/puzzle, variaciones de luz/radio/ambiente/efectos, puertas y salida; extender validación tipada de checkpoint y pruebas antes de habilitar sucesor. Revisar fragmentos del mundo y del menú y sus efectos sin reiniciar PhotoWord entre vueltas.
+Cierre por etapa: ruta desde la anterior, ruta desde guardado, acciones necesarias y acciones inválidas, reinicio, cancelación y liberación. Cada aparición de Lisa requiere prueba lógica y render, no únicamente un flag visible.
+
+4. f120 → f160 → ending — PENDIENTE
+Inventariar corredor alterado (incluido gc_p02_080), Nazo/TrueEnd y condiciones finales en código/scripts originales. Confirmar secuencia de pistas, sonidos, reloj, teléfono y cualquier entrada de micrófono antes de especificar su solución web; no sustituir requisitos desconocidos por temporizadores o botones de avance.
+Implementar recursos/cámara/colisiones de escenarios alterados, condiciones del desenlace y créditos. Si una entrada exige API del navegador, integrar disponibilidad/permisos y recuperación; cualquier alternativa de accesibilidad debe ser explícita y no fingir la entrada original.
+Cierre: partida nueva hasta ending y reanudación de cada etapa final; finales y condiciones negativas probados; créditos web conservados sin incluir recursos propietarios en distribución.
+
+5. CIERRE GLOBAL — PENDIENTE
+- Suite de recorrido completo sin audio audible ni control del escritorio, matriz de todas las apariciones de Lisa y mecánicas asociadas, semillas/relojes reproducibles cuando corresponda.
+- Comparación nativa controlada por estado/cámara/tiempo: iluminación, oclusión, reflejos, exposición, audio y subtítulos. Las pruebas sintéticas GPU no sustituyen esta comparación.
+- Probar instalación limpia y biblioteca existente: bun dev → wizard → carga → partida → menú → salir/reanudar → reinicio explícito. Errores recuperables con diagnóstico y sin perder guardado.
+- Tres recorridos de recursos sin fugas y presupuesto de frame times verificado. Documentar diferencias restantes antes de declarar 100% jugable/fiel.
+- Hosting y distribución quedan en otro hito. Sin commits/push automáticos, ni PKG, archivos extraídos o builds añadidos a Git.
+
+FORMATO DE SEGUIMIENTO
+Cada entrega: pendiente / en curso / verificada / bloqueada; evidencia reproducible y siguiente acción concreta. Separar implementación, lógica comprobada, render comprobado y comparación nativa. Reportes del usuario que contradigan un cierre reabren la validación correspondiente.
+Próxima acción: reproducir f040 con trazas de actor/puertas y una captura de rendimiento aislada; corregir Lisa y la transferencia antes de declarar f040 cerrada o continuar ampliando etapas.
+
+EJECUCIÓN 2026-10-14 — PRIMER BLOQUE
+Implementado: colisión/hoja de salida conservadas en f040 y bloqueo provisional de transferencia a f060; no publica un checkpoint nuevo que no pueda restaurarse. No equivale a implementar preparación transaccional ni a una condición del puzle original.
+Implementado: skinning sin matrices y vectores temporales por vértice; tangentes que cambian también invalidan geometría; no se eliminan modelos ni texturas. Sombras omiten luces dinámicas apagadas y se reconstruyen al activarlas.
+Verificado: recorridos nativos y guardado hasta frontera; typecheck/build; ciclo sintético WebGPU. Pendiente: captura real de Lisa y perfil RAF/GPU comparable. Tiempos de suite CPU son evidencia de coste de simulación, no FPS.
+Lisa: siete grupos con índices y estado visible; trigger nativo la oculta cerca de la esquina. Esto acota la investigación, no demuestra que sea visible en el encuadre del usuario ni autoriza alterar el trigger.
+f060: inventariadas siete FSM y sus eventos desde los recursos locales. Falta conectar reproductores, cámara/control del jugador, efectos y cadena de condiciones antes de levantar la frontera.
+
+EJECUCIÓN 2026-10-14 — ENTRADA f060
+Implementadas las dependencias de entrada gc_p03_070/011 y gc_p01_110. Transferencia f040→f060 y reanudación de f060 probadas conservando fragmentos. Frontera desplazada al recorrido interior pendiente del baño; no se declara f060 completa ni f050 disponible.
+El reproductor admite 32 instancias preparadas (antes 16) para coexistencia de intro y pasillo; mantiene límite de memoria total y límites de decodificación. Prueba verifica rechazo de la instancia 33 y liberación completa.
+Próxima implementación: resolver modelo del jugador mediante sus parts para gc_p00_030, entregar cámara/control de forma reversible, luz original de linterna y audio; después enlazar las cuatro secuencias restantes del baño. No basta añadir esos IDs al inventario.

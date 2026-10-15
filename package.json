@@ -11,7 +11,8 @@
     "typecheck": "bun run --cwd web/apps/client typecheck && bun run --cwd web/apps/server typecheck",
     "audit:publication": "python3 tools/web/audit-publication.py",
     "fmt": "prettier --write web",
-    "fmt:check": "prettier --check web"
+    "fmt:check": "prettier --check web",
+    "test:gameplay": "bun web/apps/client/scripts/test-gameplay.ts"
   },
   "workspaces": [
     "web/apps/*",

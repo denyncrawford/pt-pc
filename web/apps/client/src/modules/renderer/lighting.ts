@@ -431,6 +431,10 @@ export async function createLighting(device: any) {
           shadowRevision++;
           captureDirty = true;
           for (let layer = 0; layer < layers; layer++) {
+            // Disabled lights contribute no radiance. Their layers are refreshed
+            // before sampling when updateDynamic enables them again.
+            const light = shadowLights[Math.floor(layer / 6)];
+            if (light?.dynamic && !light.data[16]) continue;
             const pass = encoder.beginRenderPass({
               colorAttachments: [],
               depthStencilAttachment: {
@@ -450,7 +454,13 @@ export async function createLighting(device: any) {
             pass.setVertexBuffer(1, mesh.uvb);
             pass.setIndexBuffer(mesh.ib, 'uint32');
             for (const g of mesh.surface.groups)
-              if (g.visible !== false && !g.decal && !g.mirror && !g.emissive) {
+              if (
+                g.visible !== false &&
+                g.castsShadow !== false &&
+                !g.decal &&
+                !g.mirror &&
+                !g.emissive
+              ) {
                 pass.setBindGroup(1, g.binding);
                 pass.drawIndexed(g.count, 1, g.first);
               }

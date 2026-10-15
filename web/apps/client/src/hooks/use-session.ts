@@ -1,3 +1,4 @@
+import { SaveGameStore, type Checkpoint } from '../modules/gameplay/save-game';
 import { useEffect, useRef, useState } from 'react';
 import { remoteArchive } from '../services/remote-archive';
 import { control } from '../modules/renderer/renderer-elements';
@@ -80,10 +81,27 @@ export function useSession(loadEngine: RuntimeLoader) {
       xhr.send(file);
     });
   }
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingSave = useRef<Checkpoint | null>(null);
+  const saves = useRef<SaveGameStore | null>(null);
+  function saveStore() {
+    return (saves.current ??= new SaveGameStore(localStorage));
+  }
+  function saveProgress(checkpoint: Checkpoint) {
+    pendingSave.current = checkpoint;
+    try {
+      saveStore().write(checkpoint);
+      pendingSave.current = null;
+      setSaveError(null);
+    } catch (e) {
+      setSaveError(errorMessage(e));
+    }
+  }
   async function start(file?: File) {
     if (busy.current) return;
     busy.current = true;
     try {
+      const checkpoint = saveStore().read() ?? undefined;
       if (file) {
         setWizard({ kind: 'loading', title: 'Cargando tu copia' });
         await upload(file);
@@ -97,7 +115,15 @@ export function useSession(loadEngine: RuntimeLoader) {
         textures,
         (done: number, total: number) =>
           setWizard({ kind: 'loading', title: 'Cargando partida', done, total }),
-        new URL(location.href).searchParams.get('scene') === 'hallway' ? 'hallway' : 'start',
+        checkpoint
+          ? checkpoint.floor === 'f000'
+            ? 'start'
+            : 'hallway'
+          : new URL(location.href).searchParams.get('scene') === 'hallway'
+            ? 'hallway'
+            : 'start',
+        checkpoint,
+        saveProgress,
       );
       if (!loaded) throw new Error('No se pudo iniciar la partida. Vuelve a intentarlo.');
       native.current?.destroy();
@@ -249,6 +275,10 @@ export function useSession(loadEngine: RuntimeLoader) {
   }
   return {
     wizard,
+    saveError,
+    retrySave: () => {
+      if (pendingSave.current) saveProgress(pendingSave.current);
+    },
     options,
     page,
     confirm,
@@ -269,7 +299,12 @@ export function useSession(loadEngine: RuntimeLoader) {
     restart: async () => {
       setConfirm(false);
       await library();
-      await start();
+      try {
+        saveStore().reset();
+        await start();
+      } catch (e) {
+        setWizard({ kind: 'choose', ready: true, error: errorMessage(e) });
+      }
     },
     settingsActions: {
       change: configure,

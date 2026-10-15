@@ -324,27 +324,52 @@ export async function prepareDemoActors(
                 skin = a.mesh.skin,
                 weights = skin && new Float32Array(skin.packed),
                 joints = skin && new Uint32Array(skin.packed);
+              const blended = skin ? new Float32Array(16) : null;
               for (let i = 0; i < a.count; i++) {
                 let m = palette;
                 if (skin) {
-                  m = new Float32Array(16);
+                  m = blended;
+                  m.fill(0);
                   for (let k = 0; k < 4; k++)
                     for (let j = 0; j < 16; j++)
                       m[j] += weights[i * 8 + k] * palette[joints[i * 8 + k + 4] * 16 + j];
                 }
-                const tangent = transformPoint(m, a.mesh.tangents.subarray(i * 4, i * 4 + 3), 0);
-                scene.tangents.set([...tangent, a.mesh.tangents[i * 4 + 3]], (a.first + i) * 4);
-                const position = transformPoint(m, source.subarray(i * 6, i * 6 + 3)),
-                  normal = transformPoint(m, source.subarray(i * 6 + 3, i * 6 + 6), 0),
-                  len = Math.hypot(...normal) || 1;
-                for (let k = 0; k < 6; k++) {
-                  const value = Math.fround(k < 3 ? position[k] : normal[k - 3] / len),
-                    offset = (a.first + i) * 6 + k;
-                  if (scene.vertices[offset] !== value) {
-                    scene.vertices[offset] = value;
+                // Reuse scalar temporaries: no arrays/subarrays per animated vertex.
+                const vi = i * 6,
+                  ti = i * 4,
+                  out = (a.first + i) * 6;
+                const x = source[vi],
+                  y = source[vi + 1],
+                  z = source[vi + 2];
+                const nx = source[vi + 3],
+                  ny = source[vi + 4],
+                  nz = source[vi + 5];
+                const tx = a.mesh.tangents[ti],
+                  ty = a.mesh.tangents[ti + 1],
+                  tz = a.mesh.tangents[ti + 2];
+                const ax = m[0] * nx + m[4] * ny + m[8] * nz;
+                const ay = m[1] * nx + m[5] * ny + m[9] * nz;
+                const az = m[2] * nx + m[6] * ny + m[10] * nz;
+                const len = Math.hypot(ax, ay, az) || 1;
+                for (let k = 0; k < 3; k++) {
+                  const tangent = Math.fround(m[k] * tx + m[4 + k] * ty + m[8 + k] * tz);
+                  const to = (a.first + i) * 4 + k;
+                  if (scene.tangents[to] !== tangent) {
+                    scene.tangents[to] = tangent;
+                    this.dirty = true;
+                  }
+                  const position = Math.fround(m[k] * x + m[4 + k] * y + m[8 + k] * z + m[12 + k]);
+                  const normal = Math.fround((k === 0 ? ax : k === 1 ? ay : az) / len);
+                  if (
+                    scene.vertices[out + k] !== position ||
+                    scene.vertices[out + k + 3] !== normal
+                  ) {
+                    scene.vertices[out + k] = position;
+                    scene.vertices[out + k + 3] = normal;
                     this.dirty = true;
                   }
                 }
+                scene.tangents[(a.first + i) * 4 + 3] = a.mesh.tangents[ti + 3];
               }
             }
           if (p.state === 'finished') {
@@ -355,7 +380,7 @@ export async function prepareDemoActors(
           }
         }
       for (const g of groups)
-        if (g.demoActor) {
+        if (g.demoActor && !g.demoActor.lamp) {
           const visible = !g.stage && g.demoActor.created && g.demoActor.visible;
           if (g.visible !== visible) {
             g.visible = visible;

@@ -15,6 +15,7 @@
     "src/App.tsx",
     "src/hooks/**/*.ts",
     "src/components/**/*.tsx",
-    "src/modules/renderer/renderer-elements.ts"
+    "src/modules/renderer/renderer-elements.ts",
+    "src/modules/gameplay/save-game.ts"
   ]
 }

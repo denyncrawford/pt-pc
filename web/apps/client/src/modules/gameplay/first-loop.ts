@@ -109,7 +109,8 @@ function transformVertices(vertices: any, m: any) {
 export async function prepareFirstLoop(w: any, scene: any, file: any) {
   const destination = w.UTF8ToString(w._script_next_floor());
   if (!destination) throw Error('Etapa sin sucesor nativo');
-  const cycle = new StageCycle({ floor: 'f010' });
+  const initialFloor = scene.checkpoint?.floor ?? 'f010';
+  const cycle = new StageCycle({ floor: initialFloor });
   const a = await new Psarc(file).open(),
     pkg = parseFpk(await a.read('as/sh/level/common/resident.fpk')),
     path = '/Assets/sh/demo/demo_stream/gc_p00_010.fsm';
@@ -135,6 +136,9 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     'gc_p03_010',
     'gc_p04_300',
     'gc_p04_350',
+    'gc_p03_070',
+    'gc_p03_011',
+    'gc_p01_110',
   ]);
   try {
     const baseTangents = scene.tangents;
@@ -188,6 +192,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         return { name: 'next:' + l.name, data, dynamic: !!l.nativeSlot };
       }),
     ];
+    const adjacentLights = scene.lights.slice(baseLights.length);
     scene.probes = [
       ...baseProbes,
       ...baseProbes.map((p: any) => {
@@ -256,7 +261,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       photoPrepared: false,
       blocking: [],
       phase: 'walking',
-      floor: 'f010',
+      floor: initialFloor,
       frame: 0,
       completed: false,
       ready: false,
@@ -337,7 +342,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         // Keep the adjacent room's slots in the same authored lighting state.
         baseLights.forEach((light: any, i: number) => {
           if (!light.nativeSlot) return;
-          const clone = scene.lights[baseLights.length + i];
+          const clone = adjacentLights[i];
           clone.dynamic = true;
           clone.data.set(light.data);
           clone.data.set(transformPoint(next, light.data.subarray(0, 3)), 0);
@@ -362,11 +367,16 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       record('message', id === 'gc_p00_010' ? name : id + ':' + name);
     }
     function visibility() {
+      // Until f050 has a complete executable host, keep its threshold physical.
+      // A floor identifier alone is not a prepared destination or a valid save.
+      const unavailable = host.floor === 'f060';
+      if (unavailable && exit.owner) w._world_owner_active(exit.owner, 1);
       for (const g of host.groups) {
         if (g.demoActor) continue;
         g.visible = (!g.stage || host.ready) && !!w._scene_model_visible(g.modelIndex);
         if (g.stage && g.modelIndex === entry.modelIndex) g.visible = false;
         if (g.stage && host.rebased) g.visible = false;
+        if (unavailable && !g.stage && g.modelIndex === exit.modelIndex) g.visible = true;
         if (!g.stage && g.modelIndex === exit.modelIndex && host.phase === 'sequence')
           g.visible = true;
       }
@@ -382,6 +392,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       if (!w._scene_photo_collect_option()) return false;
       host.audio?.postId?.(0xe4b855b2);
       host.onPhotoCollected?.(256);
+      host.onCheckpoint?.({ floor: host.floor, photoWord: w._scene_photo_word() });
       consume();
       visibility();
       host.dirtyDoor = true;
@@ -406,6 +417,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         if (collected) {
           record('PhotoCollected', collected);
           host.onPhotoCollected?.(collected);
+          host.onCheckpoint?.({ floor: host.floor, photoWord: w._scene_photo_word() });
           host.audio?.postId?.(0xe4b855b2);
           consume();
           visibility();
@@ -465,6 +477,10 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
               w._event_retry(i);
               continue;
             }
+          } else if (host.floor === 'f060') {
+            host.blocking = ['Recorrido del baño pendiente de completar'];
+            w._event_retry(i);
+            continue;
           } else if (host.floor !== 'f010') {
             cycle.fail('Etapa fuera del hito: ' + host.floor);
           }
@@ -478,6 +494,9 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
             w._event_ack(i, 1);
             record('sequence', target);
           }
+        } else if (host.floor === 'f060' && target === 'gc_p00_030') {
+          host.blocking = ['Recogida de la linterna pendiente de integración'];
+          w._event_retry(i);
         } else if (target)
           cycle.fail(
             w.UTF8ToString(w._event_condition(i)) +
@@ -539,8 +558,8 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         position = transformPoint(host.origin, root.subarray(4, 7));
       const dm = multiply(multiply(host.origin, rotation(door)), doorInverse),
         animated = transformVertices(originalDoor, dm);
-      vertices.set(animated, exit.vertexFirst * 6);
-      tangents.set(
+      scene.vertices.set(animated, exit.vertexFirst * 6);
+      scene.tangents.set(
         transformTangents(
           baseTangents.subarray(exit.vertexFirst * 4, (exit.vertexFirst + exit.vertexCount) * 4),
           dm,
@@ -587,8 +606,8 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
           });
         consume();
         for (const { owner } of nextOwners) w._world_owner_active(owner, 0);
-        vertices.set(originalDoor, exit.vertexFirst * 6);
-        tangents.set(
+        scene.vertices.set(originalDoor, exit.vertexFirst * 6);
+        scene.tangents.set(
           baseTangents.subarray(exit.vertexFirst * 4, (exit.vertexFirst + exit.vertexCount) * 4),
           exit.vertexFirst * 4,
         );
@@ -614,8 +633,9 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         host.rebased = true;
         visibility();
         record('transferred', sourceFloor + ' → ' + host.floor);
+        host.onCheckpoint?.({ floor: host.floor, photoWord: w._scene_photo_word() });
         host.audio?.finish();
-        if (['f005', 'f020', 'f030', 'f040'].includes(host.floor)) {
+        if (['f005', 'f020', 'f030', 'f040', 'f060'].includes(host.floor)) {
           host.ready = false;
           host.active = false;
           const destination = w.UTF8ToString(w._script_next_floor());
@@ -788,6 +808,8 @@ export async function prepareOpening(w: any, scene: any, file: any) {
       },
       destroy() {
         disposed = true;
+        this.preface?.destroy();
+        this.preface = null;
         ambient.destroy();
         for (const p of players.values()) p.destroy();
       },
@@ -796,6 +818,13 @@ export async function prepareOpening(w: any, scene: any, file: any) {
       },
       update(dt: any) {
         if (this.audioError) throw this.audioError;
+        if (this.preface) {
+          if (this.preface.update(this.audio?.active ? dt : 0)) {
+            this.preface.destroy();
+            this.preface = null;
+          }
+          return view();
+        }
         if (!this.audio?.active) return this.phase === 'sequence' ? view() : null;
         if (this.phase !== 'sequence') return null;
         if (!started) {

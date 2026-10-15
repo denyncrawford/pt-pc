@@ -1141,3 +1141,158 @@ VERIFICADA GPU: prueba aislada en navegador, tres ciclos crear → cambiar ilumi
 PENDIENTE f060: inventario nativo en src/game/archive.cpp y FOX2 identifica gc_p03_070, gc_p03_011, gc_p01_110, gc_p00_030 → gc_p01_050, gc_p01_090, gc_p01_020 reutilizada y gc_p01_022. Se deben portar las dependencias de cámara/control del jugador, alternancias de hojas del baño, babycry03 y BGM herald01/baby_motion; verificar todo el recorrido antes de habilitar f060 → f050. No basta con agregar IDs: revisar capacidad concurrente, propiedad de actores por etapa y liberación, evitando acumular todas las secuencias de todas las vueltas.
 PENDIENTE: comparación visual/audio nativa controlada de f040. bun dev y wizard conservados; ningún recurso extraído ni build añadido a Git. Sin commits ni push.
 VERIFICACIÓN FINAL f040: 112 pruebas aprobadas, 0 fallos, 162 aserciones de Bun, 50 archivos, 201.94 s (work/f040-suite-final.log). Tres recorridos continuos f010 → f005 → f020 → f030 → f040 → f060 comprueban Lisa visible/oculta, llanto corto/largo enviado al mixer, ID20/ID30 en luces y sondas, fin de gc_p04_350, retirada de ambos grupos de cucarachas, cero comandos desconocidos y liberación de instancias sin crecimiento de asignaciones vivas. WASM, Vite y typecheck cliente/servidor correctos. f040 queda verificada en lógica/datos; f060 todavía pendiente de jugabilidad, y fidelidad visual nativa no cerrada.
+
+2026-10-14 — Guardado persistente y recorridos automáticos sin sustos visibles
+IMPLEMENTADA: persistencia por vuelta y PhotoWord en localStorage, independiente de la ruta secreta del servidor. La misma instancia de navegador/origen recupera la vuelta y fragmentos tras salir al wizard, cerrar o recargar. Solo Reiniciar confirmado sustituye la partida. Alcance de checkpoint siguiendo SaveProgress nativo: comienzo de la vuelta, no cámara/tiempo exactos de una secuencia interrumpida. No hay guardado remoto ni sincronización entre dispositivos.
+IMPLEMENTADA: restauración de floor y PhotoWord antes del setup nativo, incluyendo visibilidad/colisión de fragmentos. Se escribe después de transferencias válidas y recogidas de fragmentos del mundo/menú. Una carga fallida no escribe otra partida. Copia anterior válida, validación de versión/datos, aviso visible y reintento ante fallo de almacenamiento.
+IMPLEMENTADA: bun run test:gameplay ejecuta pruebas sin navegador, imágenes ni audio de sustos. Descubre la biblioteca local y exige recursos/WASM presentes: no acepta omitir pruebas como éxito. Suites fast/route/full; tres recorridos con colisiones, triggers, Lisa f030/f040, puertas, luces, llanto y liberación nativa. Documentación en web/docs/GAMEPLAY_TESTS.md.
+VERIFICADA focalizada: persistencia entre instancias, reinicio explícito conservando opciones, recuperación de copia anterior, rechazo de datos inválidos/cuota; reconstrucción f020/f030/f040 con fotos recogidas y recorrido restaurado f040 → f060 (12.81 s). El mock de reloj de esa prueba ahora avanza junto al motor, como exige el reproductor sincronizado.
+BLOQUEADO f060: se conserva su checkpoint, pero gc_p03_070 todavía impide reabrir esa vuelta. No se retrocede silenciosamente ni se borra el progreso. Sigue pendiente la implementación del inventario f060 documentado arriba.
+PENDIENTE: comparación visual/audio nativa y prueba de interfaz real de cierre/reapertura; las pruebas WASM verifican lógica y datos, no píxeles GPU ni audio audible. Ampliar el recorrido automatizado con cada siguiente aparición de Lisa; no está cubierto todo el juego todavía. Sin commits ni push; bun dev y wizard conservados.
+VERIFICACIÓN FINAL: 118 pruebas aprobadas, 0 fallos, 165 aserciones de Bun, 52 archivos en 196.14 s (work/save-suite-final.log). Incluye los tres recorridos con guardado al transferir/recoger, reanudación real de f040 y protección del checkpoint bloqueado f060. Núcleo WASM reconstruido; typecheck cliente/servidor, build Vite y git diff --check correctos. Preflight bun run test:gameplay --check identifica biblioteca y 16 archivos correctamente.
+VERIFICACIÓN EN VIVO: Zen, wizard → Comenzar → despertar → caminar → puerta animada → pasillo f010. Escape libera el ratón y abre opciones. Recarga real con Cmd+R → Jugar → Comenzar recuperó el pasillo sin repetir la intro; movimiento volvió a funcionar. Prueba detenida en pausa. Evidencia local work/live-save-test.png. El navegador integrado rechazó Pointer Lock y mostró el aviso correspondiente; Zen sí lo concedió. Esta sesión no recorrió f030/f040 ni comprobó visualmente Lisa; esa cobertura sigue siendo la suite automatizada, no se declara validada en vivo.
+
+2026-10-14 — Reinicio explícito: fallo al restaurar el puzle (verificada)
+Causa: scene_photo_restore exigía actualizar al menos un objeto del puzle. La habitación f000 no contiene esos objetos; restaurar correctamente photoWord=1 devolvía cero y abortaba el arranque.
+Corrección: cero actualizaciones es éxito; se siguen rechazando escenas ausentes, palabras inválidas y errores de aplicación. loadWalk propaga la causa original al wizard en lugar de sustituirla por un error genérico.
+Evidencia: WASM recompilado; typecheck y build correctos; 10 pruebas pasan (save-game, save-resume y opening), incluyendo guardar f040, reiniciar explícitamente, cargar f000 y verificar la cámara original de despertar. Sin controlar el navegador ni borrar almacenamiento del usuario.
+Siguiente acción: comprobar el reinicio en el navegador del usuario tras recargar la nueva compilación; la cobertura automatizada no implica fidelidad visual completa ni habilita f060.
+
+2026-10-14 — Replanificación por recorrido real del usuario
+EN CURSO: presentación de Lisa f040 y coherencia de puertas. El usuario informa que no ve la aparición de cuerpo completo pese al cambio de luz y que una puerta pierde colisión. La correspondencia exacta de trigger/puerta queda por confirmar. Las verificaciones de lógica anteriores siguen siendo válidas como tales, pero NO cierran la presentación visual ni esta incidencia.
+PENDIENTE: medir los tirones repetidos al final del pasillo y al activar animaciones. No se consideran normales ni se atribuyen a GPU, sombras o carga sin perfiles.
+PLAN ACTUAL: web/docs/PLAN-JUGABILIDAD.txt sustituye el orden histórico de próximas entregas: 0) Lisa/puertas y transferencia segura; 1) perfilado y optimización; 2) f060 completa; 3) f050/f070/f080/f090/f100/f110; 4) f120/f160/ending; 5) recorrido completo, fidelidad y recursos.
+Riesgo confirmado en código: preparación de etapas puede consistir solo en un floor, y f060 se guarda aunque gc_p03_070 impida reabrirla. Preparar/validar destino antes de publicar etapa/colisión/checkpoint forma parte de la primera entrega. No borrar checkpoints existentes.
+Esta entrega documenta el plan; no cambia jugabilidad ni declara corregida la incidencia. Próxima acción: reproducción aislada instrumentada f040, render de Lisa y estados de colisión de cada puerta, con medición de frame times. Sin control del escritorio del usuario.
+
+2026-10-14 — Registro de gameplay y comienzo del plan
+VERIFICADA investigación documental: web/docs/REGISTRO-EVENTOS.txt registra guías de Silent Hill Memories, Prima y GameFAQs, referencia audiovisual IGN localizada, diferencias entre fuentes, orden nativo y matriz de progreso hasta ending. No se afirma haber visto el vídeo completo. Las recetas finales contradictorias se contrastarán con Nazo; f050/XMark, f090/Hello y f160/TrueEnd están confirmados por floor_level.cpp.
+EN CURSO entrega 0: ampliado third-loop.test.ts para exigir grupos de render actuales, visibles y con índices cuando Lisa aparece. Tres recorridos aprobados en 112,52 s (work/f040-render-route.log). Acota el fallo, no demuestra que Lisa sea visible en píxeles: materiales, cámara/profundidad y render GPU siguen pendientes. Puerta atravesable aún pendiente de corrección.
+IMPLEMENTADA instrumentación inicial de rendimiento: buffer circular de 3600 frames activos; intervalos RAF reales y CPU por floor/fase, percentiles y umbrales de tirones. Excluye pausas/ocultación, no usa el dt limitado y no mide GPU. Exportaciones del módulo app.js permiten consultar/limpiar informe sin developer mode ni control del ratón.
+VERIFICADA prueba de métricas: pausas, tirones >100 ms, capacidad acotada y reset. Pendiente recoger perfil real y separar costes de sombras, actores, audio y subidas GPU antes de optimizar.
+Siguiente acción: capturar Lisa f040 en render aislado y perfilar el final del pasillo; corregir puerta/transferencia y completar f060. No se amplió el límite jugable ni se borró progreso. Sin commits/push.
+
+2026-10-14 — Ejecución del plan: primera entrega parcial
+IMPLEMENTADA protección provisional de frontera f040: la hoja de salida permanece visible y su propietario de colisión activo; no se publica una transferencia/checkpoint f060 que luego no pueda abrirse. Los checkpoints f060 anteriores se conservan. Esta barrera no es una condición original del puzle ni sustituye preparar de verdad el destino; se retirará al integrar f060 completa.
+IMPLEMENTADAS optimizaciones sin recortar assets: animación reutiliza la matriz de skinning por actor y calcula posiciones/normales/tangentes sin arrays temporales por vértice. Cambios solo en tangentes también invalidan los buffers. Las luces dinámicas apagadas no generan seis pases de sombra; al encenderse vuelven a renderizarse. Se conserva la capa de profundidad de reserva cuando no hay luces de sombra.
+VERIFICADA lógica: 120 pruebas, 0 fallos, sin omisiones, 53 archivos, 150,22 s; biblioteca PSARC y QAR local. Evidencia work/plan-suite-final.log. Incluye tres recorridos hasta f040, colisión al final, checkpoint conservado y reanudación; pruebas de apagar/encender sombras y escena sin luces de sombra. Typecheck cliente/servidor, build Vite y git diff --check correctos.
+VERIFICADA GPU sintética en pestaña aislada oculta: tres ciclos de asignación/cambio/liberación, lámpara apagada/encendida, 86 luces, 150 capas, 160 sondas; cero errores de validación. No se tocó Zen, ratón ni guardado del usuario. No demuestra fidelidad visual nativa.
+RENDIMIENTO CPU: la ruta focalizada después del cambio empleó 11,39/11,30/22,89 s frente a 36,86/37,65/37,97 s de la ejecución anterior. Son tiempos de simulación headless con variación de carga, no FPS ni comparación GPU controlada. Falta perfil RAF/GPU real del pasillo.
+EN CURSO Lisa f040: siete grupos de material con geometría válida y estado visible. La traza confirma desaparición nativa cerca de la esquina; falta comprobar encuadre/material/profundidad en píxeles antes de declarar corregida la aparición. No se alteró el trigger original.
+EN CURSO inventario f060: inspeccionadas gc_p03_070, gc_p03_011, gc_p01_110, gc_p00_030, gc_p01_050, gc_p01_090 y gc_p01_022; gc_p01_020 se reutiliza. Falta implementar consumidores de eventos, cámara/control, efectos y continuidad completa. No se habilitaron IDs a ciegas.
+SIGUIENTE: render aislado de Lisa y preparación real de f060 con cámara/control/puertas/audio; luego reemplazar la barrera provisional por transferencia validada y ampliar el recorrido a f050. PLAN-JUGABILIDAD y REGISTRO-EVENTOS actualizados; no se declara juego completo ni se amplía el límite jugable en esta entrega. Sin commits/push.
+
+2026-10-14 — Reapertura y ampliación hasta entrada de f060 (entrega parcial verificada)
+CORREGIDO el error de inicio gc_p03_070: se preparan las secuencias originales de luces gc_p03_070, cucarachas gc_p03_011 y apertura del baño gc_p01_110. El checkpoint f060 existente vuelve a cargar sin reiniciar ni alterar PhotoWord.
+AMPLIADO recorrido f040 → entrada de f060: retirada la barrera provisional en f040 después de verificar la carga del destino. Se conservan las condiciones de finalización de gc_p04_350 y comandos pendientes. Los tres recorridos comprueban transferencia y checkpoint restaurable.
+LÍMITE REAL: apertura del baño de f060. Recogida de linterna gc_p00_030 aún pendiente: el evento queda reintentable, sin confirmarlo ni abortar la sesión. La hoja y colisión de salida de f060 permanecen activas; f050 no se publica. No se declara f060 completa.
+DEPENDENCIAS detectadas para continuar: modelo del jugador referenciado mediante parts, cámara/control/cuerpo durante recogida, linterna original y sus parámetros, audio de gc_p00_030, cadena gc_p01_050/090/020/022. No se introdujeron sustitutos silenciosos ni se omitieron sus comandos para fingir continuidad.
+REPRODUCTOR: 32 instancias preparadas permitidas para coexistencia de intro y pasillo, manteniendo el presupuesto nativo de memoria y límites del decoder. Prueba de capacidad, rechazo de instancia 33, recuperación y liberación completa. WASM reconstruido localmente, sin añadir builds a Git.
+VERIFICACIÓN: 121 pruebas, 0 fallos, 54 archivos, 162,33 s, con PSARC/QAR locales; work/f060-suite.log. Incluye recorrido f010→f060 en tres sesiones, reanudación de f060, pausa del reloj, luces/insectos/apertura y despacho del sonido original, fragmentos persistentes y limpieza. Typecheck, build Vite, git diff --check y preflight test:gameplay (17 archivos) correctos. Sin control del escritorio ni cambios en el guardado del usuario.
+PENDIENTE VISUAL: Lisa f040 sigue sin comparación de píxeles; estos tests no prueban fidelidad visual/audio audible. PLAN-JUGABILIDAD, REGISTRO-EVENTOS y GAMEPLAY_TESTS actualizados para reflejar el límite exacto. Sin commits ni push.
+
+REABIERTO — legibilidad de Lisa en f040 (2026-10-14)
+El modelo está dibujado, pero la comprobación visual desde la esquina confirma
+que queda casi negro. Desactivar sombras sólo en la prueba no lo resuelve.
+Mantener pendiente la aceptación visual: investigar materiales/ID60/exposición
+con gc_p04_300 y aproximación continua antes de marcar esta aparición completa.
+Detalle y coordenadas en REGISTRO-EVENTOS.txt. Sin cambios de brillo ni triggers.
+
+2026-10-15 — Paridad de luces y posprocesado, Lisa continúa pendiente
+- Corregidos en WASM los dos focos de escaleras 8SL_stairs_down0000/0002:
+  40 lm como RenderSceneBuilder::AddLight (regla nativa 0xE149F0), no los 10
+  lm almacenados en ID60. No se alteraron las demás luces, sombras ni triggers.
+- preparePost carga las 15 filas nativas, incluidas f030/f040/f060; no depender
+  de la fila f010 para fases posteriores. f040 tiene los mismos valores de
+  exposición/bloom que f010 en los recursos actuales: esto no explica su oscuridad.
+- Pruebas con recursos locales: 5/5 (luces nativas, posprocesado, vida GPU).
+  Typecheck y build del cliente aprobados; WASM recompilado.
+- La captura aislada posterior sigue mostrando a Lisa demasiado oscura. También
+  se aisló SSAO sin mejora suficiente. No marcar solucionada la legibilidad.
+  Siguiente: comparación del material/iluminación del personaje con render nativo.
+
+2026-10-15 — Prefacio original antes del primer despertar
+IMPLEMENTADO:
+- gc_p02_500 precede gc_p00_022/gc_p00_020 en una partida nueva.
+- Logo 7780s y cartela proceden del PKG: opening.uigb, UILB/UIF/UIA y FTEX
+  originales; no imágenes ni textos de la captura incorporados al repositorio.
+- Se ejecutan eventos y fundidos de la FSM (940 frames, ~15,68 s), con mensajes
+  SUBP localizados. Pausa/audio inactivo detienen el reloj; el despertar no avanza
+  bajo el prefacio. Los recursos se liberan al terminar o abandonar.
+- Continuar un checkpoint no repite el prefacio; Reiniciar partida crea una
+  partida nueva y sí lo reproduce. La regla se aplica antes de instalar el
+  checkpoint inicial f000.
+- UIGB y modelos/nombres de UILB expuestos por el lector nativo WASM.
+- Registrados preface.js y preface-overlay.js en los recursos del servidor.
+VALIDACIÓN:
+- Compilación WASM y Vite correctas; typecheck cliente/servidor correcto.
+- 13 pruebas correctas: preface, opening, native-ui y save-game.
+- Inspección visual aislada de logo y cartela en navegador oculto, sin tocar Zen
+  ni la partida guardada. Evidencia local: work/preface-text-verified.png
+  (ruta relativa al directorio padre del repositorio; no distribuida).
+ALCANCE:
+- El dibujo de estos dos paneles rectangulares usa Canvas2D con los recursos
+  y opacidades nativos; no es todavía un reproductor genérico de cualquier UIGB.
+- La traducción inferior usa el presentador web de subtítulos existente.
+- No cambia el límite jugable ni resuelve la visibilidad pendiente de Lisa.
+- Reiniciar bun dev tras este cambio para cargar el registro de módulos nuevo;
+  recargar solamente una instancia antigua del servidor no lo actualiza.
+
+2026-10-15 — Lámpara colgante ausente / importación preface
+- Causa confirmada: prepareLamp evaluaba huesos y sonido pero no incorporaba la malla FMDL al renderer.
+- Integrados cuerpo y bombilla blanca originales, skinning nativo y balanceo sincronizado con los cues de audio; variantes off/roja excluidas de la primera vuelta. Visibilidad por vuelta y subida GPU limitada al rango de la lámpara; conserva sombras.
+- Verificación: prueba con PSARC local recorre dos ciclos normales y uno fuerte, comprueba pose cambiante, valores finitos y visibilidad. Captura aislada f010: work/lamp-first-loop.png (fuera de Git). La lámpara y bombilla ya aparecen.
+- Pendiente de fidelidad: CeilLampGlass/CeilLampFlareLight, variantes StageLight roja/apagada por evento y comparación controlada de la iluminación del fondo. No se declara equivalencia visual completa.
+- Host: resolución segura de nuevos módulos JS/CSS planos del build, además del manifiesto. Pruebas HTTP para preface.js, preface-overlay.js y lamp.js; comprobación de imports del build y rechazo de rutas fuera del directorio público.
+- El host antiguo PID 86659 sigue activo: el sistema denegó SIGTERM. Requiere Ctrl+C en su terminal y bun dev para cargar el arreglo. No se ha borrado biblioteca ni progreso.
+- No cambia el límite jugable ni cierra los pendientes de Lisa/f060.
+
+2026-10-15 — Apertura omitida al reanudar / comparación de lámpara
+- Corregido: installSession guarda f000 antes de reproducir la apertura; prepareSession descartaba el prefacio si existía cualquier checkpoint. Ahora toda carga de la habitación inicial reproduce los títulos originales antes del despertar, incluso al reanudar f000. Los checkpoints del pasillo conservan su recorrido sin prefacio ni reinicio de progreso.
+- Validación: cuatro pruebas de prefacio con PSARC/QAR reales (logo, texto, fundidos, duración 940 frames, espera del despertar, pausa y selección de sesión); typecheck y build pasan.
+- La iluminación NO está igualada. Confirmado en código nativo VfxScene::SyncGimmicks: CeilLampGlass/CeilLampFlareLight están asociados a EffectDescription y conexiones del modelo. El renderer web dibuja cuerpo y bombilla, pero app.ts no conecta prepareEffects ni consume las salidas visuales de efectos.cpp. No basta con cargar el FMDL ni aumentar exposición.
+- Siguiente implementación de fidelidad: resolver EffectDescription/partName y conexiones CNP/huesos de los parts originales, integrar quads/materiales/flaring de VFX en el renderer, sincronizar transformaciones con la lámpara y validar desde igual posición/fase de f010. Conservar luces y sombras originales. Referencia actual del usuario está tomada desde otra distancia y con la puerta del fondo cerrada; separar estado de puerta de diferencias de iluminación.
+
+2026-10-15 — Lisa oscura: luz original de CeilLamp recuperada
+CORREGIDA la causa principal comprobada: fx_sh_flrlgt01_s3.vfx emite una
+SpotLight de 2000 lumen que el cliente no enviaba al renderizador. No era
+solamente la ausencia cosmética de vidrio/halo. Se lee EffectDescription de
+lte0_main0_def_v00.parts, su hueso, offset, generalParameters, kind y semilla;
+la simulación VFX original calcula posición, dirección, temperatura, cono,
+alcance, intensidad y parámetros de sombra. Sin luz de relleno inventada,
+sin cambiar exposición global y sin retirar sombras de Lisa ni del pasillo.
+La fuente sigue la animación de CeilLamp/CeilLampStrong y se apaga con el
+modelo en las etapas deshabilitadas. Slot reservado dentro del cuarto activo;
+las copias de luces del cuarto siguiente conservan referencias estables.
+VERIFICACIÓN VISUAL: f040 en navegador aislado, misma cámara antes/después:
+antes masa negra; después cabeza, vestido y piernas distinguibles, pared y
+suelo iluminados, sombras presentes. Sin errores de consola. Evidencia local
+outputs/lisa-native-lamp-light.png (fuera del repo). No se controló Zen.
+PENDIENTE: rasterizar las 7 superficies Liquid del vidrio (normal/alpha,
+refracción y cubemap originales) y los quads de lens flare con oclusión.
+La dependencia vfxlf ya se carga; esto NO equivale a dibujar su halo.
+PENDIENTE: sincronización completa de los tres switches StageLight, incluida
+variante roja, y luz del gimmick de la habitación adyacente durante el cruce.
+La iluminación NO se declara igualada al original ni se amplía el límite jugable.
+VALIDACIÓN: 4 pruebas de lámpara, vida de iluminación y tercera vuelta,
+0 fallos, con assets locales; prueba de lámpara repetida tras cubrir el
+slot del cuarto activo: 2/2. Typecheck cliente/servidor, build WASM,
+build Vite y git diff --check correctos. Cambios locales, sin commit/push.
+
+2026-10-15 — regresiones de lámpara y puerta de salida
+CORREGIDO: conversión del cono VFX. Se aplica el límite nativo 1..179 grados
+de ToSceneLight antes del coseno y del cálculo de ángulo sólido. El valor
+180 producía un coseno negativo por redondeo, activando la ruta de luz puntual
+y proyectando sombras enormes hacia el techo. Se conservan intensidad y sombras.
+CORREGIDO: GetGameObjectId("ShGimmick", "CeilLamp") resuelve partsType como
+el registro nativo, no el nombre FOX2. StageLight gobierna luz blanca y malla
+encendida/apagada durante f040; los cambios siguen los scripts originales.
+CORREGIDO: puerta tras las escaleras escribe en scene.vertices/tangents actuales,
+también después de que appendLamp reasigne los buffers.
+VALIDACIÓN: tres recorridos f010→f060 comprueban movimiento de la puerta en
+el buffer actual, aparición/desaparición de Lisa, presets ID20→ID30 y estados
+StageLight 0/1. Tres pruebas pasan. Captura aislada confirma que no hay las
+grandes bandas sobre el techo; no constituye igualdad visual completa.
+PENDIENTE: vidrio Liquid, halo con oclusión, variante roja StageLight y luz
+adyacente. Mantener comparación de f040 en cada fase y de f010 a igual cámara.
+No se amplía el límite jugable ni se publican assets. Cambios locales.

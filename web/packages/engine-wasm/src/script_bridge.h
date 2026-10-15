@@ -39,7 +39,10 @@ static void PushScriptElement(lua_State* L,const pt::fox2::Entity& e,const pt::f
  switch(p.type){case D::String:case D::Path:case D::FilePtr:lua_pushstring(L,f.ElementString(p,i).c_str());break;case D::EntityPtr:case D::EntityHandle:case D::EntityLink:PushScriptEntity(L,f.ElementEntity(p,i));break;case D::Bool:lua_pushboolean(L,f.GetBool(e,p.name,i));break;case D::Float:lua_pushnumber(L,f.GetFloat(e,p.name,i));break;case D::Vector3:PushVec(L,glm::vec3(f.GetVec4(e,p.name,i)));break;default:lua_pushnumber(L,f.GetInt(e,p.name,i));break;}
 }
 static int ScriptVisible(lua_State* L){model_visible[ScriptRef(L)->entity]=lua_toboolean(L,lua_upvalueindex(1));return 0;}
-static int ScriptObjectId(lua_State* L){const std::string name=luaL_checkstring(L,2);for(const auto& e:stage->file->Entities())if(stage->file->GetString(e,"name")==name){PushScriptEntity(L,&e);return 1;}lua_pushnil(L);return 1;}
+static int ScriptObjectId(lua_State* L){const std::string type=luaL_checkstring(L,1),name=luaL_checkstring(L,2);
+ // Native ShGimmick IDs use the registered parts type, not the FOX2 entity name.
+ if(type=="ShGimmick")for(const auto& locator:stage->game_objects)if(locator.class_name==type){const auto* parameters=stage->file->GetEntity(*locator.entity,"parameters");if(parameters&&stage->file->GetString(*parameters,"partsType")==name){PushScriptEntity(L,locator.entity);return 1;}}
+for(const auto& e:stage->file->Entities())if(stage->file->GetString(e,"name")==name){PushScriptEntity(L,&e);return 1;}lua_pushnil(L);return 1;}
 static int ScriptObjectCommand(lua_State* L){auto* e=ScriptRef(L);lua_getfield(L,2,"id");const std::string id=luaL_checkstring(L,-1);lua_pop(L,1);if(id!="StageLight")return luaL_error(L,"Unsupported GameObject command");lua_getfield(L,2,"switch");body_enabled[e->entity]=lua_toboolean(L,-1);lua_pop(L,1);return 0;}
 static int ScriptGet(lua_State* L){
  const auto* r=ScriptRef(L);const std::string key=luaL_checkstring(L,2);const auto& f=*stage->file;

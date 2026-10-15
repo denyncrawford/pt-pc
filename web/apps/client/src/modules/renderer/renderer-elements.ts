@@ -41,6 +41,13 @@ function observable<T extends object>(value: T): T {
 }
 const controls = new Map<string, Control>();
 let canvas: HTMLCanvasElement | null = null;
+let prefaceCanvas: HTMLCanvasElement | null = null;
+export function bindPrefaceCanvas(value: HTMLCanvasElement | null) {
+  prefaceCanvas = value;
+}
+export function getPrefaceCanvas() {
+  return prefaceCanvas;
+}
 export function bindCanvas(value: HTMLCanvasElement | null) {
   canvas = value;
 }
@@ -61,7 +68,7 @@ export function control(id: string): Control {
       value: '',
       checked: true,
       disabled: false,
-      hidden: id === 'stage-loading',
+      hidden: id === 'stage-loading' || id === 'preface',
       files: [],
       choices: [],
       onclick: () => {},

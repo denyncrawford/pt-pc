@@ -425,7 +425,7 @@ test(
           new URL('../../../packages/engine-wasm/dist/geometry.wasm', import.meta.url),
         ),
       });
-      await loadHallway(w, Bun.file(process.env.PT_TEST_PSARC), () => {}, { scripts: true, kind });
+      await loadHallway(w, Bun.file(process.env.PT_TEST_PSARC), () => {}, { scripts: true, kind: String(kind) });
       const events = Array.from({ length: w._acoustic_source_count() }, (_: any, i: any) =>
         w.UTF8ToString(w._acoustic_source_event(i)),
       );

@@ -1,0 +1,124 @@
+REGISTRO CONSULTABLE DE EVENTOS Y PROGRESO — 2026-10-14
+
+FUENTES Y CRITERIO
+[S1] Silent Hill Memories, walkthrough completo:
+https://www.silenthillmemories.net/silent_hills/pt_walkthrough_en.htm
+Recorrido organizado por acontecimientos, incluyendo fragmentos y desenlace. Útil para contrastar el baño, aparición del pasillo, linterna, retrato, refrigerador, HELLO, mirilla, falso error y teléfono. Sus instrucciones de micrófono no se toman como algoritmo confirmado.
+[S2] Prima Games, guía publicada en 2014:
+https://primagames.com/news/silent-hills-pt-complete-guide-and-walkthrough
+El autor advierte que su recorrido usa vueltas adicionales. Describe explícitamente dos cucarachas unidas en la intro, coherente con los dos actores hallados en los datos. Útil para comparar percepción del jugador, no para eliminar actores ni numerar floors.
+[S3] GameFAQs, P.T. Exhaustive Analysis:
+https://gamefaqs.gamespot.com/boards/827527-pt/69858605
+Registro comunitario desde radio/golpes hasta desenlace. Distingue el susto del baño de la aparición de cuerpo completo posterior. Incluye especulación narrativa y propuestas inciertas del último puzle; no convertirlas en requisitos. El recuento de pasos final difiere de S1.
+[S4] IGN, walkthrough audiovisual parte 1, publicado 2014-08-13:
+https://www.youtube.com/watch?v=LrL8ybvDSkA
+Referencia localizada; no se declara reproducida ni analizada fotograma a fotograma en esta entrega.
+[N1] src/game/floor_order.h: orden real del port.
+[N2] src/game/floor_level.cpp: activación de puzzles y condiciones de avance.
+[N3] src/game/archive.cpp: inventario de cinemáticas; no enumera todos los eventos.
+[N4] src/game/nazo.cpp y nazo.h: mecánicas de puzzles.
+[N5] FOX2/Lua/FSM de biblioteca local: triggers, eventos, tiempos y recursos originales. Nunca copiar recursos propietarios a documentación pública.
+
+No se encontró una especificación pública única que certifique cada trigger, frame y variante. Estas guías cubren el recorrido completo, pero no sustituyen N1–N5. Comparaciones de iluminación requieren vídeo/capturas equivalentes, no descripciones textuales. No se transcribe ni copia íntegramente ninguna guía.
+
+MATRIZ DE COBERTURA
+Leyenda: V = verificada en el alcance indicado; EC = en curso; P = pendiente; B = bloqueada. El estado gráfico nunca se infiere de una flag lógica.
+Cada floor debe tener: entrada/condición, evento y recursos, interacción/salida, checkpoint, caso negativo, prueba lógica, prueba gráfica/audio y perfil de rendimiento.
+
+f000 | despertar, cucarachas, salida al pasillo | V lógica y recorrido manual previo; reinicio corregido y probado | fidelidad visual pendiente.
+f010 | primera exploración y radio | V ruta y reanudación manual previas | perfil final del pasillo pendiente.
+f005 | cuadro caído, cucarachas/golpes y regreso para abrir paso | V lógica de ruta | auditar puertas desde juego real.
+f020 | secuencia gc_p04_340 y continuidad | V pruebas de ruta | revisión visual/audio pendiente.
+f030 | zoom en puerta entreabierta, Lisa, cierre y apertura de paso; gc_p01_021 → gc_p01_010 | V lógica; usuario confirma susto | comparación controlada pendiente.
+f040 | aparición/desaparición del pasillo, llanto y grupos de luz; gc_p04_300/350 | EC: flags probadas, usuario NO ve a Lisa; puerta atravesable reportada | prioridad actual: grupos renderizables, materiales, profundidad y colisión.
+f060 | siguiente bloque del baño; inventario gc_p03_070/011, gc_p01_110, gc_p00_030 → gc_p01_050, gc_p01_090/020/022 | EC: entrada/restauración, luces gc_p03_070, cucarachas gc_p03_011 y apertura gc_p01_110 implementadas; linterna y resto del baño pendientes | implementar cadena completa y validar destino antes de guardar.
+f050 | XMark activo, salida exige IsCleared(XMark); gc_p04_320 | P | portar interacción del retrato, consecuencias y repetición sin resolución (N2).
+f070 | preparación Hello; gc_p04_120/280 | P | inventariar callbacks, ambiente, Lisa y física de objetos; asociar acontecimientos visuales con N5.
+f080 | preparación Hello; gc_p02_520 | P | cotejar variante de escenario/iluminación y transición con N5.
+f090 | Hello activo, salida exige IsCleared(Hello) | P | portar condiciones de mirada, letras y repetición (N2/N4).
+f100 | Hello forzado resuelto (N2) | P | inventariar radio, ambiente y eventos de salida; no asumir ausencia de trabajo porque no haya cinemática listada.
+f110 | Peephole activo; gc_p02_090 | P | portar mirada/tiempo, cámara, corredor alterado y salida según N4/N5.
+f120 | Photo activo, gc_p02_080; controlador Endf120 | P | auditar falso error, mensajes y reinicio narrativo sin confundirlo con reinicio explícito del guardado.
+f160 | preparación TrueEnd y reconocimiento de voz; salida exige IsCleared(TrueEnd) | P | auditar reloj, pasos, voz, inmovilidad, teléfono, apariciones y variantes; no codificar recetas de foros como reglas.
+ending | detener reconocimiento de voz y ejecutar desenlace | P | recursos, secuencias, créditos y estado de partida terminada.
+
+La correspondencia de los capítulos de guías con f070/f080 y variantes posteriores es una tarea de cotejo, no un hecho derivado de su número de vuelta. f060 precede a f050 en N1.
+
+MECÁNICAS TRANSVERSALES
+Photo: cinco fragmentos del mundo y uno del menú; recogida/efectos/PhotoWord implementados y probados. Verificar todos los puntos desde cámara normal, persistencia, no repetir recompensa. Según N2 es un estado separado de XMark/Hello/TrueEnd: no exigir completar Photo para todo el juego basándose en una guía.
+Lisa: separar actor del baño f030, representación del pasillo f040 y apariciones/posesión/ataques posteriores. Registrar trigger, mirada/distancia, transformación, duración, audio, efecto sobre control y salida. No extrapolar cobertura f030 a todas las apariciones.
+Puertas: distinguir lobby, baño y salida tras escaleras. Matriz cerrada/entreabierta/animada/abierta con malla y propietario de colisión; fallo de destino conserva el origen.
+Audio/luz: inventario por floor y condición, no solo por archivo. Radio, lluvia, lámpara, llanto, golpes, pasos, relojes y silencios forman parte del recorrido.
+Guardado: actualmente floor + PhotoWord; ampliar con versión/migración para estados de nuevos puzzles según checkpoint nativo. Preservar copias y no sustituir guardado ante error.
+Rendimiento: comparar primera activación y repetición de cada secuencia; carga, CPU/GPU, frame times y recursos vivos. No reducir assets para ocultar tirones.
+
+DÓNDE ESTAMOS
+Última evidencia del usuario: susto del baño funciona; alcanza cambios de luz del pasillo posterior, pero Lisa no se ve y una puerta se atraviesa. No prueba f060 completa.
+Última evidencia automática previa: 118 tests pasan en suite integrada; corrección de reinicio: 10 tests específicos pasan. Son resultados históricos, no una nueva ejecución de toda la suite.
+Próxima entrega: comprobar píxeles de Lisa f040, sustituir frontera provisional por preparación real de destino y medir FPS de ruta; después f060. El plan detallado y criterios de cierre están en PLAN-JUGABILIDAD.txt. ROADMAP.txt conserva historial; este registro mantiene la matriz actual.
+
+ACTUALIZACIÓN DE EJECUCIÓN — 2026-10-14
+El límite accesible se amplía desde f040 a la entrada y apertura del baño de f060. Se elimina el bloqueo de carga por gc_p03_070 y se reabre el checkpoint existente sin modificar PhotoWord.
+Eventos verificados en integración WASM: gc_p03_070 (luces de entrada), gc_p03_011 (actores de cucarachas), gc_p01_110 (hoja/picaporte y sonido de apertura). Los disparadores proceden de FOX2/Lua originales; no hay temporizadores sustitutivos ni botones para saltar eventos.
+Límite actual explícito: gc_p00_030 (recoger linterna) permanece pendiente y reintentable, sin acusar recibo ni ejecutar una secuencia incompleta. La salida de f060 conserva hoja/colisión y no publica f050. Esto es una frontera de implementación, no una condición original del puzle.
+Orden pendiente: gc_p00_030 cámara/control/cuerpo/linterna/audio → gc_p01_050 → gc_p01_090 → gc_p01_020 → gc_p01_022 → salida y checkpoint f050. Verificar además babycry03 y BGM herald01/baby_motion. La presentación visual de Lisa f040 sigue abierta.
+
+2026-10-14 — Diagnóstico visual f040 (aparición estática, todavía no resuelta)
+- Render aislado con recursos locales originales: shsb_hous001_ocho001_0000 sí
+  produce una silueta humanoide en pantalla. Desde cámara (-0.1, 0.2, 7.5),
+  mirando hacia -X, cara y cuerpo quedan casi negros. No basta validar visible=1.
+- Comparación de diagnóstico con sombras desactivadas: la silueta sigue casi
+  negra. No se desactivaron sombras en el juego ni se alteró exposición.
+- Recorrido nativo: visible cambia de 1 a 0 cerca de (-0.2853,-1.4,7.5000).
+  Corresponde a 2_trap_change_light_invisible_model, volumen original centrado
+  en (-0.7566,-0.0474,7.4779). No se desplazó el trigger ni se añadió demora.
+- Pendiente: contrastar la respuesta de materiales/iluminación ID60 y exposición
+  durante gc_p04_300 con el render nativo, y verificar la aproximación continua.
+  La captura aislada no certifica que el jugador distinga la aparición.
+- Prueba en pestaña aislada, sin modificar guardado ni controlar el navegador
+  del usuario. No se amplía el límite jugable como resultado de este diagnóstico.
+
+2026-10-15 — f040, comparación posterior a gc_p04_300
+Se corrigió la intensidad de los focos originales de escaleras a 40 lm, como
+el port nativo. Test native-stair-lights verifica ambos focos ID60, su radiancia
+y que 7PL_wall0002 conserva 200 lm. Se cargan las 15 filas de posprocesado.
+La captura posterior no permite cerrar el reporte de Lisa: sigue casi negra.
+Se comprobó también la variante sin SSAO sólo en el servidor aislado; no se
+eliminó SSAO del juego. Las filas nativas f010/f030/f040/f060 de exposición y
+bloom coinciden. No se adelantó el límite jugable ni se cambió el guardado.
+
+2026-10-15 — PREÁMBULO, gc_p02_500 (antes de f000/despertar)
+Fuente: game_controller.cpp pasos 8–11; FSM y opening.uigb del PKG local.
+0: crear e iniciar gráfico de apertura.
+30: evento UI de entrada del logo 7780s STUDIO.
+210: evento UI de salida del logo.
+300: entrada de la cartela de apertura.
+320: subtítulo 3307921926, primera frase (duración SUBP: 4 s).
+590: subtítulo 3593452506, segunda frase (duración SUBP: 5 s).
+890: salida de la cartela.
+940: fin; habilitar el primer despertar.
+Estado web: integrado para partida nueva/reinicio; resume omite el prefacio.
+Pruebas: visibilidad de ambos FTEX, mensajes, fundidos, fin, espera de cámara
+y reloj pausado. Comprobación visual aislada completada.
+
+2026-10-15 — CeilLamp visual
+Modelo lte0_main0_def.fmdl añadido a la escena desde la copia local. Huesos y sonido comparten la muestra de CeilLamp/CeilLampStrong. Primera vuelta: cuerpo y MESH_on_ST visibles; MESH_off y MESH_on_red_ST ocultos. Verificado en render aislado f010. Vidrio/flare VFX y StageLight dinámico aún pendientes; no usar esta captura como aprobación de iluminación exacta.
+
+2026-10-15 — Evidencia visual f040 / CeilLampFlareLight
+La aparición de Lisa sí tenía modelo: faltaba la luz producida por el VFX
+original de la lámpara (2000 lumen). Integrada desde las conexiones .parts y
+el simulador nativo, conservando las sombras. Captura aislada f040 confirma
+silueta humana distinguible y luz cálida en el fondo. No valida aún todas las
+transiciones StageLight. Vidrio Liquid y halo con oclusión siguen pendientes;
+no confundir carga/simulación de sus recursos con rasterización completa.
+
+2026-10-15 — evidencia de regresiones de presentación
+f040: la luz de CeilLamp obedece StageLight de los scripts extraídos locales.
+El ID se resuelve por partsType de ShGimmick, igual al registro nativo.
+Recorrido de tres sesiones verifica 0/1 junto a Lisa visible/oculta e ID20/ID30.
+No imponer brillo constante sobre la aparición ni sustituir los triggers por
+temporizadores nuevos. Comparación visual de cada fase aún pendiente.
+Salida tras escaleras: la animación escribe en la geometría activa incluso
+si la lámpara amplió/reasignó los buffers; prueba de movimiento por cada salida.
+Lámpara: cono limitado como ToSceneLight nativo (máximo 179 grados), evitando
+confundirlo con una luz puntual. Se mantienen las sombras originales.

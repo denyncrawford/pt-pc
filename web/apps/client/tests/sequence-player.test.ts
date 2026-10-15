@@ -83,5 +83,17 @@ test(
       assert.equal(w._sequence_instance_count(), 0);
       assert.equal(w._sequence_resident_bytes(), base);
     }
+    // Opening and a prepared hallway coexist during their handoff. Keep the
+    // resource limit bounded while permitting the expanded sequence inventory.
+    const prepared = Array.from({ length: 32 }, () => load('gc_p03_070'));
+    try {
+      assert.equal(w._sequence_instance_count(), 32);
+      assert.throws(() => load('gc_p03_070'), /Too many concurrent sequences/);
+      assert.equal(w._sequence_instance_count(), 32);
+    } finally {
+      for (const player of prepared) player.destroy();
+    }
+    assert.equal(w._sequence_instance_count(), 0);
+    assert.equal(w._sequence_resident_bytes(), base);
   },
 );

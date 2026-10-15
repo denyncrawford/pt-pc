@@ -1,3 +1,4 @@
+import { validateCheckpoint, type Checkpoint } from './save-game';
 import { selectLights, parseLpsh, mirrorPlane, createNativeLighting } from '../renderer/lighting';
 import { readMaterials } from '../renderer/materials';
 import { Psarc, parseFpk, fpkEntry, MAX_ENTRY } from '../../lib/archives';
@@ -51,7 +52,11 @@ export async function loadHallway(
   wasm: any,
   file: any,
   progress: any = () => {},
-  { scripts = false, kind = 'hallway' }: any = {},
+  {
+    scripts = false,
+    kind = 'hallway',
+    checkpoint,
+  }: { scripts?: boolean; kind?: string; checkpoint?: Checkpoint } = {},
 ) {
   progress('Leyendo escena y colisiones originales…');
   const entries = await hallwayResources(file, kind),
@@ -71,12 +76,21 @@ export async function loadHallway(
               throw Error('Script original incompatible: ' + name);
           }),
         );
+    if (checkpoint) {
+      validateCheckpoint(checkpoint);
+      withString(wasm, checkpoint.floor, (p: number) => {
+        if (!wasm._script_set_floor(p)) throw Error('No se pudo restaurar la vuelta guardada');
+      });
+      if (!wasm._scene_photo_restore(checkpoint.photoWord))
+        throw Error('No se pudo restaurar el puzle');
+    }
     // The browser checkpoint begins after f000's entrance. Run the original entrance setup.
     if (kind === 'hallway')
       for (const name of [
         'pt14_hallway|pt14_hallway_demo|common_demo|condition_Light',
         'pt14_hallway|pt14_hallway_demo|common_demo|condition_Setup_Sound',
         'pt14_hallway|pt14_hallway_trap0000|condition_loadStage',
+        ...(checkpoint ? ['pt14_hallway|pt14_hallway_demo|common_demo|condition_0001'] : []),
       ])
         withString(wasm, name, (p: any) => {
           if (wasm._script_exec_condition(p) !== 1) throw Error('No se pudo preparar ' + name);
@@ -279,6 +293,7 @@ export async function loadHallway(
   probes.sort((a: any, b: any) => b.priority - a.priority);
   const nativeLighting = scripts ? createNativeLighting(wasm, probes) : undefined;
   return {
+    checkpoint,
     updateNativeLighting: nativeLighting?.update,
     entries: scripts ? entries : undefined,
     placements,

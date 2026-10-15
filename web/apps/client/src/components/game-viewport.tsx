@@ -1,3 +1,4 @@
+import { bindPrefaceCanvas } from '../modules/renderer/renderer-elements';
 import type { useSession } from '../hooks/use-session';
 import { bindCanvas, control } from '../modules/renderer/renderer-elements';
 import { DeveloperTools, EngineText, useRendererUi } from './renderer-controls';
@@ -16,6 +17,17 @@ export function GameViewport({ session: s }: { session: Session }) {
         s.development ? 'flex min-h-dvh flex-col' : 'flex h-dvh flex-col justify-center bg-black'
       }
     >
+      {s.saveError && (
+        <div
+          role="alert"
+          className="absolute left-4 top-4 z-10 max-w-sm bg-black/90 p-4 text-white"
+        >
+          <p>{s.saveError}</p>
+          <button onClick={s.retrySave} className="mt-2 border px-3 py-2">
+            Reintentar guardado
+          </button>
+        </div>
+      )}
       <header
         className={
           s.development ? 'border-b border-[#364336] px-6 py-[18px]' : 'absolute right-4 top-3 z-3'
@@ -62,6 +74,18 @@ export function GameViewport({ session: s }: { session: Session }) {
           className="pointer-events-none absolute inset-0 bg-black"
           style={{ opacity: Number(control('opening-fade').style.opacity) }}
         />
+        <canvas
+          ref={bindPrefaceCanvas}
+          hidden={control('preface').hidden}
+          className="pointer-events-none absolute inset-0 size-full bg-black"
+          aria-label="Apertura original"
+        />
+        <div
+          hidden={control('preface').hidden}
+          className="pointer-events-none absolute inset-x-[8%] bottom-[22px] whitespace-pre-line text-center text-lg leading-[1.45] text-white"
+        >
+          {control('preface-caption').textContent}
+        </div>
         <div
           id="subtitles"
           aria-live="polite"

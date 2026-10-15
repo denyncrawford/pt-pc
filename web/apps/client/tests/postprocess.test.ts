@@ -41,6 +41,11 @@ test(
     assert.deepEqual(s.floors.f010.scale, [1, 1.12, 1.3]);
     assert.deepEqual(s.floors.f005.add, [-4.8, -3.8, -2.4]);
     assert.equal(s.floors.f010.size, 2);
+    assert.equal(Object.keys(s.floors).length, 15);
+    for (const floor of ['f030', 'f040', 'f060', 'f160']) {
+      assert.ok(s.floors[floor], `Missing native post settings: ${floor}`);
+      assert.ok(Number.isFinite(exposureFor(-3, s.floors[floor])));
+    }
     assert.ok(s.lut.some((x: any) => x > 0));
   },
 );

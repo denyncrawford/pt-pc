@@ -76,6 +76,12 @@ static int photo_apply(){if(!stage)return 0;int changed=0;const auto& f=*stage->
 }
 EMSCRIPTEN_KEEPALIVE int scene_photo_prepare(){if(!(photo_word&2))photo_word=2;return photo_apply();}
 EMSCRIPTEN_KEEPALIVE int scene_photo_word(){return photo_word;}
+EMSCRIPTEN_KEEPALIVE int scene_photo_restore(uint32_t word){
+ if(!stage || word>0x1ffu)return 0;
+ photo_word=word;photo_armed=0;photo_hold=0;zoom_held=false;zoom_pressed=false;
+ // The starting room has no photo assets. Zero updates is a successful restore.
+ return photo_apply()>=0;
+}
 EMSCRIPTEN_KEEPALIVE int scene_photo_pending(){return stage&&photo_active&&!(photo_word&0x100);}
 EMSCRIPTEN_KEEPALIVE int scene_photo_collect_option(){if(!scene_photo_pending())return 0;photo_word|=0x100;photo_apply();return 1;}
 // The native Photo puzzle arms on a Zoom press in the authored trap and
@@ -110,12 +116,16 @@ EMSCRIPTEN_KEEPALIVE const float* light_data(int i) {
  auto reach=glm::vec3(f.GetVec4(e,"reachPoint"));if(glm::length(reach)<0.0001f)reach={0,-1,0};
  auto direction=glm::normalize(glm::mat3(l.world)*reach);
  const bool spot=l.class_name=="SpotLight";const float pi=3.14159265358979323846f;
- auto rgb=pt::light_math::ColorFromTemperature(l.temperature,f.GetFloat(e,"colorDeflection"),l.lumen,glm::vec3(l.color));
+ // Match RenderSceneBuilder::AddLight / native 0xE149F0: these stair
+ // spotlights override the authored lumen value, including the ID60 preset.
+ const auto leaf=l.name.substr(l.name.find_last_of('|')+1);
+ const float lumen=spot&&(leaf=="8SL_stairs_down0000"||leaf=="8SL_stairs_down0002")?40.0f:l.lumen;
+ auto rgb=pt::light_math::ColorFromTemperature(l.temperature,f.GetFloat(e,"colorDeflection"),lumen,glm::vec3(l.color));
  rgb*=spot?f.GetFloat(e,"powerScale",0,1.0f)/(pt::light_math::SpotSolidAngle(l.umbra_angle,l.penumbra_angle,l.attenuation_exponent)*pi):1.0f/(4*pi*pi);
  for(int k=0;k<3;k++){values[k]=l.world[3][k];values[4+k]=rgb[k];values[8+k]=direction[k];}
  values[3]=l.outer_range;values[7]=l.dimmer;values[11]=spot?cos(l.umbra_angle*pi/360):-1;
  values[12]=spot?cos(l.penumbra_angle*pi/360):-1;values[13]=l.attenuation_exponent;values[14]=l.inner_range;values[15]=l.cast_shadow;
- values[16]=BodyEnabled(l.entity,l.enable);values[17]=l.has_specular;values[18]=l.lumen;values[19]=pt::light_math::SourceRadius(l.light_size);
+ values[16]=BodyEnabled(l.entity,l.enable);values[17]=l.has_specular;values[18]=lumen;values[19]=pt::light_math::SourceRadius(l.light_size);
  values[20]=f.GetFloat(e,"shadowBias")*.001f;values[21]=spot?f.GetFloat(e,"viewBias")*.001f:0;
  values[22]=f.GetFloat(e,"LodShadowDrawRate",0,1);values[23]=spot?cos(f.GetFloat(e,"shadowUmbraAngle",0,l.umbra_angle)*pi/360):-1;
  const float inner=spot?cos(f.GetFloat(e,"shadowPenumbraAngle",0,l.penumbra_angle)*pi/360):-1;
@@ -257,6 +267,7 @@ EMSCRIPTEN_KEEPALIVE int locator_count() {return stage->locators.size()+stage->g
 static const pt::game::LocatorPlacement& locator(int i) {return size_t(i)<stage->locators.size()?stage->locators.at(i):stage->game_objects.at(i-stage->locators.size());}
 EMSCRIPTEN_KEEPALIVE const char* locator_name(int i) {return locator(i).name.c_str();}
 EMSCRIPTEN_KEEPALIVE const float* locator_matrix(int i) {return glm::value_ptr(locator(i).world);}
+EMSCRIPTEN_KEEPALIVE int lamp_stage_light(){if(!stage)return 0;const auto& f=*stage->file;for(const auto& l:stage->game_objects)if(l.class_name=="ShGimmick"){auto p=f.GetEntity(*l.entity,"parameters");if(p&&f.GetString(*p,"partsType")=="CeilLamp")return BodyEnabled(l.entity,true)?1:0;}return 0;}
 EMSCRIPTEN_KEEPALIVE const float* lamp_locator(){if(!stage)return nullptr;const auto& f=*stage->file;for(const auto& l:stage->game_objects)if(l.class_name=="ShGimmick"){auto p=f.GetEntity(*l.entity,"parameters");if(p&&f.GetString(*p,"partsType")=="CeilLamp")return glm::value_ptr(l.world);}return nullptr;}
 EMSCRIPTEN_KEEPALIVE void world_clear() {world.Clear();surfaces.clear();geom_owner=0;owner_count=1;}
 EMSCRIPTEN_KEEPALIVE int world_owner_create(const char* name){const auto id=world.AddOwner(name?name:"");owner_count=id+1;return id;}

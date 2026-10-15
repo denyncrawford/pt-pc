@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { Hono } from 'hono';
-import { files } from './lib/resources';
+import { resolveResource } from './lib/resources';
 import { headers, reply, error } from './http/responses';
 import type { createLibrary } from './services/library';
 import { serveAsset } from './routes/assets';
@@ -47,7 +47,7 @@ export function createApp(options: AppOptions) {
   );
   app.on(['GET', 'HEAD'], prefix + '*', (c) => {
     const path = new URL(c.req.url).pathname.slice(prefix.length);
-    const resource = files[path || 'index.html'];
+    const resource = resolveResource(path || 'index.html');
     if (!resource) return error('No encontrado.', 404);
     return new Response(c.req.method === 'HEAD' ? null : Bun.file(resource.path), {
       headers: { ...headers, 'Content-Type': resource.mime },

@@ -70,7 +70,9 @@ test(
   async () => {
     const w = await create(),
       file = Bun.file(process.env.PT_TEST_PSARC),
-      scene = await loadHallway(w, file, () => {}, { scripts: true });
+      scene = Object.assign(await loadHallway(w, file, () => {}, { scripts: true }), {
+        baseLightingCounts: { lights: 0, probes: 0 },
+      });
     let events = [];
     const audio = {
       active: false,
@@ -78,9 +80,63 @@ test(
       effect: (...a: any) => events.push(a),
       releaseEffects: () => {},
     };
+    const baseLightCount = scene.lights.length;
+    const adjacent = scene.lights.map((light: { name: string; data: Float32Array }) => ({
+      ...light,
+      name: 'next:' + light.name,
+      data: light.data.slice(),
+    }));
+    scene.baseLightingCounts = { lights: baseLightCount, probes: scene.probes.length };
+    scene.lights = [...scene.lights, ...adjacent];
     const p = await prepareLamp(w, scene, file, audio);
     assert.ok(p, 'hallway has original ShGimmick lamp');
+    const light = scene.lights.find((l: { name: string }) => l.name === 'CeilLampFlareLight');
+    assert.ok(light, 'authored VFX light is added, not a synthetic fill light');
+    assert.equal(scene.baseLightingCounts.lights, baseLightCount + 1);
+    assert.equal(scene.lights[baseLightCount], light, 'lamp remains inside the active-room range');
+    assert.equal(
+      scene.lights[baseLightCount + 1],
+      adjacent[0],
+      'adjacent-room slots follow the lamp',
+    );
+    assert.equal(light.data[18], 2000, 'native effect emits 2000 lumen');
+    assert.equal(light.data[15], 1, 'native spotlight shadows retained');
+    assert.ok(
+      light.data[11] > 0,
+      '180 degree authored cone retains spot classification, never becomes omnidirectional',
+    );
+    assert.ok(
+      light.data[4] > light.data[5] && light.data[5] > light.data[6],
+      'native warm temperature',
+    );
+    assert.ok(
+      light.data[1] > 1 && light.data[1] < 2,
+      'effect follows body bone, not ceiling locator',
+    );
+    const lightBefore = light.data.slice();
+    const groups = scene.groups.filter((g: any) => g.demoActor?.lamp);
+    assert.equal(groups.length, 4, 'original lamp mesh variants appended once');
     p.update('f010');
+    assert.equal(groups.filter((g: any) => g.visible).length, 2, 'body and white bulb visible');
+    const before = scene.vertices.slice(p.visual.first * 6);
+    p.sample(p.clips.get('CeilLamp'), 45);
+    assert.ok(scene.vertices.slice(p.visual.first * 6).every(Number.isFinite));
+    assert.notDeepEqual(scene.vertices.slice(p.visual.first * 6), before, 'native rig moves mesh');
+    assert.notDeepEqual(
+      light.data.slice(0, 3),
+      lightBefore.slice(0, 3),
+      'light moves with the same native rig',
+    );
+    scene.updateNativeLighting?.();
+    assert.equal(light.data[16], 1, 'preset updates do not clear VFX light');
+    const rendered = groups.map((g: any) => ({ ...g }));
+    p.visual.bindGroups(rendered);
+    p.update('f080');
+    assert.equal(light.data[16], 0, 'disabled lamp contributes no light');
+    assert.ok(rendered.every((g: any) => !g.visible));
+    p.update('f010');
+    assert.equal(rendered.filter((g: any) => g.visible).length, 2);
+    assert.equal(light.data[16], 1, 'lamp light restored on active floor');
     assert.equal(events.length, 0);
     audio.active = true;
     p.update('f010');

@@ -1,3 +1,4 @@
+import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 const root = resolve(import.meta.dir, '../../../../..');
 export const extractor =
@@ -16,6 +17,8 @@ export const files: Record<string, { path: string; mime: string }> = {
       'options.js',
       'renderer-elements.js',
       'native-ui.js',
+      'preface.js',
+      'preface-overlay.js',
       'lamp.js',
       'effects.js',
       'app.js',
@@ -28,6 +31,7 @@ export const files: Record<string, { path: string; mime: string }> = {
       'lighting.js',
       'first-loop.js',
       'stage-cycle.js',
+      'save-game.js',
       'sequence-player.js',
       'demo-resources.js',
       'demo-actors.js',
@@ -52,3 +56,13 @@ export const files: Record<string, { path: string; mime: string }> = {
     ]),
   ),
 };
+
+// New Vite modules can appear after a local rebuild. Only public, flat JS/CSS
+// build outputs are eligible; arbitrary paths and library assets never are.
+export function resolveResource(name: string) {
+  if (files[name]) return files[name];
+  if (!/^[a-zA-Z0-9_-]+\.(js|css)$/.test(name)) return undefined;
+  const path = resolve(root, 'web/apps/client/dist', name);
+  if (!existsSync(path) || !statSync(path).isFile()) return undefined;
+  return { path, mime: name.endsWith('.js') ? 'text/javascript' : 'text/css; charset=utf-8' };
+}

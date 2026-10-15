@@ -1,3 +1,4 @@
+import type { Checkpoint } from '../modules/gameplay/save-game';
 import type { GameOptions } from '../modules/settings/options';
 import type { RangeArchive } from '../services/remote-archive';
 
@@ -21,6 +22,8 @@ export interface GameRuntime {
     textures: RangeArchive,
     progress: (done: number, total: number) => void,
     scene: 'start' | 'hallway',
+    checkpoint?: Checkpoint,
+    onCheckpoint?: (checkpoint: Checkpoint) => void,
   ): Promise<boolean>;
   createOriginalMenu(
     canvas: HTMLCanvasElement,

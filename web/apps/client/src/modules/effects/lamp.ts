@@ -1,6 +1,9 @@
 import { Psarc, unwrap } from '../../lib/archives';
 import { withEntry, withString } from '../gameplay/runtime';
 import { loadDemoResources } from '../sequences/demo-resources';
+import { readSkin } from '../player/player-body';
+import { readMaterials } from '../renderer/materials';
+import { multiply } from '../renderer/lighting';
 import { transformPoint } from '../gameplay/first-loop';
 
 // FloorLevel's lamp states. This selects a clip; ordinary hallway transfers do not restart it.
@@ -68,21 +71,64 @@ export async function prepareLamp(w: any, scene: any, file: any, audio: any) {
         .sort((a: any, b: any) => a.frame - b.frame);
       clips.set(key, clip);
     }
-    return new LampPlayer(
+    const parts = '/Assets/sh/parts/chara/lte/lte0_main0_def_v00.parts';
+    const effectPath = withEntry(w, resources.read(parts), parts, (p: number, n: number) => {
+      const result = w._lamp_effect_parts(p, n);
+      if (!result) throw Error('Conexión original de luz de lámpara inválida');
+      return w.UTF8ToString(result) as string;
+    });
+    withEntry(w, resources.read(effectPath), effectPath, (p: number, n: number) => {
+      if (!w._lamp_effect_load(p, n)) throw Error('Efecto original de luz de lámpara inválido');
+    });
+    const flare = '/Assets/sh/effect/vfx_data/lensflare/fx_sh_lfrlgt01.vfxlf';
+    withEntry(w, resources.read(flare), flare, (p: number, n: number) =>
+      withString(w, flare, (name: number) => w._lamp_effect_dependency(name, p, n)),
+    );
+    const light = { name: 'CeilLampFlareLight', data: new Float32Array(28), dynamic: true };
+    // Native preset slots retain their own array; they must not clear the VFX slot.
+    scene.lights = [...scene.lights];
+    const lightIndex = scene.baseLightingCounts?.lights ?? scene.lights.length;
+    scene.lights.splice(lightIndex, 0, light);
+    if (scene.baseLightingCounts) scene.baseLightingCounts.lights++;
+    const visual = appendLamp(w, scene, resources.read(model), model, world);
+    const setEnabled = visual.setEnabled;
+    let lightEnabled = true;
+    visual.setEnabled = (enabled: boolean) => {
+      lightEnabled = enabled;
+      light.data[16] = Number(enabled && w._lamp_stage_light() === 1);
+      setEnabled(enabled);
+    };
+    const player = new LampPlayer(
       clips,
       audio,
-      (clip: any, frame: any) => {
+      (clip: any, frame: any, dt = 0) => {
         withString(w, clip.path, (p: any) => w._lamp_motion(p));
         if (!w._lamp_sample(frame)) throw Error('No se pudo evaluar lámpara');
+        setEnabled(lightEnabled);
+        visual.sample();
+        const ptr = w._malloc(64);
+        try {
+          w.HEAPF32.set(world, ptr / 4);
+          const value = w._lamp_effect_sample(ptr, Math.min(dt, 0.25));
+          if (!value) throw Error('No se pudo evaluar la luz original de lámpara');
+          light.data.set(w.HEAPF32.subarray(value / 4, value / 4 + 28));
+          light.data[16] = Number(lightEnabled && w._lamp_stage_light() === 1);
+        } finally {
+          w._free(ptr);
+        }
       },
       () => w._lamp_clear(),
     );
+    player.visual = visual;
+    player.sample(clips.get('CeilLamp'), 0);
+    return player;
   } catch (error) {
     w._lamp_clear();
     throw error;
   }
 }
 export class LampPlayer {
+  declare visual: any;
   declare clips: any;
   declare audio: any;
   declare sample: any;
@@ -109,6 +155,7 @@ export class LampPlayer {
   }
   update(floor: any, paused: any = false) {
     if (this.destroyed) return;
+    this.visual?.setEnabled(!!lampMotionForFloor(floor));
     if (paused || !this.audio.active) {
       this.lastTime = null;
       return;
@@ -148,7 +195,7 @@ export class LampPlayer {
         { transient: true, sends: e.sends },
       );
     this.frame = to;
-    this.sample(clip, clip.loop ? to % clip.frames : Math.min(to, clip.frames));
+    this.sample(clip, clip.loop ? to % clip.frames : Math.min(to, clip.frames), dt);
   }
   destroy() {
     if (this.destroyed) return;
@@ -157,4 +204,115 @@ export class LampPlayer {
     this.clear();
     this.lastTime = null;
   }
+}
+
+// ShGimmick is not a static scene placement: append its native skinned mesh once.
+function appendLamp(w: any, scene: any, bytes: Uint8Array, path: string, world: Float32Array) {
+  const mesh = withEntry(w, bytes, path, (p: any, n: any) => {
+    try {
+      if (w._decode_fmdl(p, n)) throw Error('Modelo de lámpara inválido');
+      const count = w._vertex_count();
+      return {
+        vertices: w.HEAPF32.slice(w._vertex_ptr() / 4, w._vertex_ptr() / 4 + count * 6),
+        tangents: w.HEAPF32.slice(w._tangent_ptr() / 4, w._tangent_ptr() / 4 + count * 4),
+        uvs: w.HEAPF32.slice(w._uv_ptr() / 4, w._uv_ptr() / 4 + count * 2),
+        indices: w.HEAPU32.slice(w._index_ptr() / 4, w._index_ptr() / 4 + w._index_count()),
+        groups: readMaterials(bytes),
+        skin: readSkin(bytes, count),
+        count,
+      };
+    } finally {
+      w._release_geometry();
+    }
+  });
+  const first = scene.vertices.length / 6,
+    indexFirst = scene.indices.length;
+  const append = (a: Float32Array, b: Float32Array) => {
+    const out = new Float32Array(a.length + b.length);
+    out.set(a);
+    out.set(b, a.length);
+    return out;
+  };
+  scene.vertices = append(scene.vertices, mesh.vertices);
+  scene.tangents = append(scene.tangents, mesh.tangents);
+  scene.uvs = append(scene.uvs, mesh.uvs);
+  const indices = new Uint32Array(indexFirst + mesh.indices.length);
+  indices.set(scene.indices);
+  indices.set(
+    mesh.indices.map((i: number) => i + first),
+    indexFirst,
+  );
+  scene.indices = indices;
+  const actor = { lamp: true };
+  let renderedGroups = scene.groups;
+  const groups = mesh.groups.map((g: any, i: number) => ({
+    ...g,
+    first: g.first + indexFirst,
+    demoActor: actor,
+    visible: true,
+    castsShadow: (g.flags & 0x140) === 0 && ((g.flags & 0x10) === 0 || (g.flags & 0xf) === 0),
+    lampVariant: mesh.skin.chains[i]?.find((name: string) =>
+      ['MESH_off', 'MESH_on_ST', 'MESH_on_red_ST'].includes(name),
+    ),
+    lampHidden: mesh.skin.chains[i]?.some((name: string) =>
+      ['MESH_off', 'MESH_on_red_ST'].includes(name),
+    ),
+  }));
+  scene.groups.push(...groups);
+  const weights = new Float32Array(mesh.skin.packed),
+    joints = new Uint32Array(mesh.skin.packed);
+  const blended = new Float32Array(16);
+  const visual = {
+    first,
+    count: mesh.count,
+    dirty: false,
+    bindGroups(value: any) {
+      renderedGroups = value;
+    },
+    setEnabled(enabled: boolean) {
+      for (const g of renderedGroups)
+        if (g.demoActor === actor)
+          g.visible =
+            enabled &&
+            (!g.lampVariant ||
+              g.lampVariant === (w._lamp_stage_light() ? 'MESH_on_ST' : 'MESH_off'));
+    },
+    sample() {
+      if (w._lamp_bone_count() <= mesh.skin.maxJoint) throw Error('Paleta de lámpara incompleta');
+      const ptr = w._lamp_skin() / 4;
+      const palette = w.HEAPF32.slice(ptr, ptr + w._lamp_bone_count() * 16);
+      for (let i = 0; i < palette.length; i += 16)
+        palette.set(multiply(world, palette.subarray(i, i + 16)), i);
+      for (let i = 0; i < mesh.count; i++) {
+        blended.fill(0);
+        for (let k = 0; k < 4; k++)
+          for (let j = 0; j < 16; j++)
+            blended[j] += weights[i * 8 + k] * palette[joints[i * 8 + k + 4] * 16 + j];
+        const m = blended,
+          vi = i * 6,
+          ti = i * 4,
+          out = (first + i) * 6,
+          to = (first + i) * 4;
+        for (let k = 0; k < 3; k++) {
+          scene.vertices[out + k] =
+            m[k] * mesh.vertices[vi] +
+            m[k + 4] * mesh.vertices[vi + 1] +
+            m[k + 8] * mesh.vertices[vi + 2] +
+            m[k + 12];
+          scene.vertices[out + k + 3] =
+            m[k] * mesh.vertices[vi + 3] +
+            m[k + 4] * mesh.vertices[vi + 4] +
+            m[k + 8] * mesh.vertices[vi + 5];
+          scene.tangents[to + k] =
+            m[k] * mesh.tangents[ti] +
+            m[k + 4] * mesh.tangents[ti + 1] +
+            m[k + 8] * mesh.tangents[ti + 2];
+        }
+        scene.tangents[to + 3] = mesh.tangents[ti + 3];
+      }
+      visual.dirty = true;
+    },
+  };
+  visual.setEnabled(true);
+  return visual;
 }

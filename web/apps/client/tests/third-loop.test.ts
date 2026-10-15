@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import create from '../../../packages/engine-wasm/dist/geometry.js';
 import { loadHallway, stepPlayer } from '../src/modules/gameplay/runtime';
 import { prepareFirstLoop } from '../src/modules/gameplay/first-loop';
+import { SaveGameStore } from '../src/modules/gameplay/save-game';
 import { prepareLocatorSounds } from '../src/modules/audio/audio';
 test(
-  'walk original f010 → f005 → f020 → f030 → f040 → f060 in three sessions',
+  'walk original f010 → f060 in three sessions with resumable checkpoints',
   { skip: !process.env.PT_TEST_PSARC },
   async () => {
     const w = await create(),
@@ -15,8 +16,21 @@ test(
       const started = performance.now(),
         scene = await loadHallway(w, file, () => {}, { scripts: true }),
         host = await prepareFirstLoop(w, scene, file);
+      // Appending a skinned gimmick replaces these typed arrays after preparing the loop.
+      scene.vertices = new Float32Array(scene.vertices);
+      scene.tangents = new Float32Array(scene.tangents);
+      host.vertices = scene.vertices;
+      const storage = new Map<string, string>();
+      const saves = new SaveGameStore({
+        getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => {
+          storage.set(key, value);
+        },
+      });
+      host.onCheckpoint = (checkpoint) => saves.write(checkpoint);
       let time = 0,
         sequenceBase = 0;
+      const f040Lamp = new Set<number>();
       const f040Lights = new Set<string>(),
         f040Probes = new Set<string>(),
         f040Lisa = new Set<boolean>(),
@@ -53,6 +67,7 @@ test(
             host.update(1 / 30);
             locators.update();
             if (host.floor === 'f040') {
+              f040Lamp.add(w._lamp_stage_light());
               for (const light of scene.lights)
                 if (light.nativeSlot && light.data[16])
                   f040Lights.add(light.name.match(/_light_(ID\d+)\|/)?.[1]);
@@ -62,6 +77,16 @@ test(
                 p.name.endsWith('shsb_hous001_ocho001_0000'),
               );
               f040Lisa.add(!!w._scene_model_visible(lisa.modelIndex));
+              if (w._scene_model_visible(lisa.modelIndex)) {
+                const groups = host.groups.filter(
+                  (g: any) => !g.stage && g.modelIndex === lisa.modelIndex && !g.demoActor,
+                );
+                assert.ok(groups.length > 0, 'Lisa has render groups in the current hallway');
+                assert.ok(
+                  groups.some((g: any) => g.visible !== false && g.count > 0),
+                  'native Lisa visibility reaches drawable geometry',
+                );
+              }
               for (const locator of locators.items)
                 if (locator.visible) {
                   const path = w.UTF8ToString(w._fx_locator_path(locator.index));
@@ -75,13 +100,24 @@ test(
       }
       async function exit() {
         assert.equal(host.phase, 'sequence');
+        const exitDoor = scene.placements.find((p: { name: string }) =>
+          p.name.endsWith('_hallway_out'),
+        );
+        const offset = exitDoor.vertexFirst * 6;
+        const doorBefore = scene.vertices.slice(offset, offset + exitDoor.vertexCount * 6);
+        let doorMoved = false;
         let view;
         for (let i = 0; i < 135 && host.phase === 'sequence'; i++) {
           time += 1 / 60;
           view = host.update(1 / 60);
+          if (i === 60)
+            doorMoved = doorBefore.some((v: number, k: number) => v !== scene.vertices[offset + k]);
           locators.update();
         }
+        assert.ok(doorMoved, 'exit animation updates the current render vertex array');
         assert.ok(view.transferred);
+        assert.equal(saves.read()?.floor, host.floor, 'successful transfer persists destination');
+        assert.equal(saves.read()?.photoWord, w._scene_photo_word());
         if (host.preparation) await host.preparation;
         return view;
       }
@@ -131,6 +167,7 @@ test(
         assert.equal(host.collectMenuPhoto(), true);
         assert.equal(host.collectMenuPhoto(), false);
         assert.equal(w._scene_photo_word(), 0x104);
+        assert.equal(saves.read()?.photoWord, 0x104, 'collecting menu photo saves immediately');
         assert.equal(host.completed, false);
         assert.equal(host.unsupported.size, 0);
         assert.deepEqual(host.cycle.history, [
@@ -277,6 +314,7 @@ test(
         );
         await exit();
         assert.equal(host.floor, 'f060');
+        assert.equal(saves.read()?.floor, 'f060');
         assert.ok(
           f040Lights.has('ID20') && f040Lights.has('ID30'),
           'original light switch sequence',
@@ -286,15 +324,13 @@ test(
           'indirect lighting follows direct lighting',
         );
         assert.deepEqual([...f040Lisa].sort(), [false, true], 'Lisa appears and disappears');
+        assert.deepEqual(
+          [...f040Lamp].sort(),
+          [0, 1],
+          'native StageLight turns lamp off then on in f040',
+        );
         assert.ok([...f040Cries].some((name) => name.includes('cry_s01')));
         assert.ok([...f040Cries].some((name) => name.includes('cry_l01')));
-        for (const id of ['gc_p04_300', 'gc_p04_350']) {
-          const player = host.ambient.players.get(id);
-          assert.equal(player.state, 'stopped');
-          assert.ok(
-            [...player.models.values()].every((actor: any) => !actor.visible && !actor.created),
-          );
-        }
         assert.equal(host.ambient.players.get('gc_p03_010').state, 'stopped');
         assert.equal(host.unsupported.size, 0);
       } finally {

@@ -60,7 +60,23 @@ export async function preparePost(w: any, file: any, qar: any) {
     if (!w._post_import(p, n, 1)) throw Error('Parámetros de iluminación inválidos');
   });
   const floors: Record<string, any> = {};
-  for (const floor of ['f000', 'f010', 'f005', 'f020']) {
+  for (const floor of [
+    'f000',
+    'f005',
+    'f010',
+    'f020',
+    'f030',
+    'f040',
+    'f050',
+    'f060',
+    'f070',
+    'f080',
+    'f090',
+    'f100',
+    'f110',
+    'f120',
+    'f160',
+  ]) {
     const s = withString(w, floor, (p: any) => JSON.parse(w.UTF8ToString(w._post_settings(p))));
     if (!s.luts?.common_saturation_a) throw Error('Falta LUT common_saturation_a');
     floors[floor] = s;

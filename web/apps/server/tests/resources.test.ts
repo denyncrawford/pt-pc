@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import ts from 'typescript';
-import { files } from '../src/lib/resources';
+import { files, resolveResource } from '../src/lib/resources';
 // Parse syntax, not diagnostic strings inside bundled React or other dependencies.
 test('every relative browser import is exposed by the host', async () => {
   for (const [name, resource] of Object.entries(files)) {
@@ -27,7 +27,7 @@ test('every relative browser import is exposed by the host', async () => {
         target = node.arguments?.[0];
       if (target && ts.isStringLiteral(target) && target.text.startsWith('./'))
         expect(
-          files[target.text.slice(2)],
+          resolveResource(target.text.slice(2)),
           `${name} imports unserved ${target.text}`,
         ).toBeDefined();
       ts.forEachChild(node, visit);
@@ -53,4 +53,16 @@ test('React Compiler memoizes the shipped wizard and settings views', async () =
     expect(fn, `${name} must be present in the UI bundle`).toBeDefined();
     expect(fn!.body!.getText(tree)).toContain('import_compiler_runtime.c');
   }
+});
+
+test('resource fallback only exposes flat browser build modules', () => {
+  expect(resolveResource('preface.js')?.mime).toBe('text/javascript');
+  for (const name of [
+    '../package.json',
+    '../dist/app.js',
+    '.data/chunk1.psarc',
+    'chunk1.psarc',
+    'missing.js',
+  ])
+    expect(resolveResource(name)).toBeUndefined();
 });

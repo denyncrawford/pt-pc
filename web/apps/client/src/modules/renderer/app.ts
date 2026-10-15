@@ -1,10 +1,17 @@
+import { loadPreface, shouldPlayPreface } from '../sequences/preface';
+import { createPrefaceOverlay } from './preface-overlay';
+import type { Checkpoint } from '../gameplay/save-game';
 import type { GameOptions } from '../settings/options';
 import { element as $ } from './renderer-elements';
 import createMenuAudio from './audio-core.js';
 import { loadNativeUi, NativeMenu, decodeMenuSounds } from '../menu/native-ui';
 import { prepareLamp } from '../effects/lamp';
 import { preparePost, createPost } from './postprocess';
-import { trackGpu } from './gpu-resources';
+import { trackGpu, FrameMetrics } from './gpu-resources';
+const frameMetrics = new FrameMetrics();
+export function performanceReport() {
+  return frameMetrics.snapshot();
+}
 import { characterWGSL } from './material-shading';
 import { materialWGSL } from './materials';
 import { createPlayerBody } from '../player/player-body';
@@ -34,6 +41,7 @@ import {
 } from '../gameplay/runtime';
 import createGeometry from './geometry.js';
 import { discoverModels, MAX_ENTRY } from '../../lib/archives';
+let checkpointListener: ((checkpoint: Checkpoint) => void) | undefined;
 const canvas = $('canvas');
 const status = (message: any) => {
   $('status').textContent = message;
@@ -504,6 +512,12 @@ async function loadModel(index: any) {
   }
 }
 function frame(time: any) {
+  const cpuStarted = performance.now();
+  frameMetrics.begin(
+    time,
+    walking && !menuPaused && !document.hidden,
+    `${firstLoop?.floor ?? 'none'}:${firstLoop?.phase ?? 'none'}`,
+  );
   const dt = Math.min((time - last) / 1000, 0.05);
   last = time;
   const w = Math.min(
@@ -601,7 +615,6 @@ function frame(time: any) {
     try {
       sceneLighting?.setTransition(firstLoop.ready && !firstLoop.rebased);
       const view = firstLoop.update(document.hidden ? 0 : dt);
-      if (sceneLighting?.updateDynamic()) refreshShadows = true;
       if (view) {
         camera = view.camera;
         yaw = view.yaw;
@@ -645,7 +658,7 @@ function frame(time: any) {
                 : firstLoop.floor === 'f040'
                   ? 'Etapa f040 · eventos, luces y salida originales activos.'
                   : firstLoop.floor === 'f060'
-                    ? 'Etapa f060 · sus secuencias están pendientes de integración.'
+                    ? 'Etapa f060 · entrada y apertura del baño disponibles; recogida de la linterna pendiente.'
                     : 'Etapa ' +
                       firstLoop.floor +
                       '. Retrocede tras encontrar las cucarachas para activar el evento del baño antes de volver a la salida. Reloj y audio originales activos.',
@@ -658,6 +671,25 @@ function frame(time: any) {
   $('opening-fade').style.opacity = firstLoop?.opening ? firstLoop.fade : 0;
   if (gameAudio) {
     acoustics?.lamp?.update(firstLoop?.floor, menuPaused || document.hidden);
+    if (sceneLighting?.updateDynamic()) refreshShadows = true;
+    const lampVisual = acoustics?.lamp?.visual;
+    if (lampVisual?.dirty && mesh) {
+      const { first, count } = lampVisual;
+      device.queue.writeBuffer(
+        mesh.vb,
+        first * 24,
+        firstLoop.vertices.subarray(first * 6, (first + count) * 6),
+      );
+      for (let i = first; i < first + count; i++)
+        mesh.surface.uvData.set(mesh.surface.tangents.subarray(i * 4, i * 4 + 4), i * 6 + 2);
+      device.queue.writeBuffer(
+        mesh.uvb,
+        first * 24,
+        mesh.surface.uvData.subarray(first * 6, (first + count) * 6),
+      );
+      lampVisual.dirty = false;
+      refreshShadows = true;
+    }
     if (!menuPaused && !document.hidden) {
       acoustics?.ambience?.update(camera, dt);
       acoustics?.locators?.update();
@@ -857,6 +889,7 @@ function frame(time: any) {
       },
     );
   device.queue.submit([encoder.finish()]);
+  frameMetrics.end(performance.now() - cpuStarted);
   requestAnimationFrame(frame);
 }
 async function init() {
@@ -1245,8 +1278,10 @@ export async function unloadWalk({ transfer = false }: any = {}) {
   const disposingNext = nextSession?.destroy();
   nextSession = null;
   transitioning = false;
-  if (!transfer) pauseWalk();
-  else keys.clear();
+  if (!transfer) {
+    pauseWalk();
+    checkpointListener = undefined;
+  } else keys.clear();
   walking = false;
   cameraBasis = null;
   $('opening-fade').style.opacity = '0';
@@ -1288,9 +1323,10 @@ async function prepareSession(
   textureFile: any,
   onProgress: any = () => {},
   kind: any = 'start',
+  checkpoint?: Checkpoint,
 ) {
   const candidate: any = {
-    floor: kind === 'start' ? 'f000' : 'f010',
+    floor: checkpoint?.floor ?? (kind === 'start' ? 'f000' : 'f010'),
     wasm: await createGeometry(),
     kind,
   };
@@ -1319,6 +1355,7 @@ async function prepareSession(
     const scene: any = (candidate.scene = await loadHallway(w, file, () => {}, {
       scripts: true,
       kind,
+      checkpoint,
     }));
     if (kind === 'hallway')
       for (let i = 0; i < w._locator_count(); i++)
@@ -1329,6 +1366,11 @@ async function prepareSession(
     onProgress(1, 7);
     candidate.locomotion = await prepareLocomotion(w, file, () => {});
     candidate.loop = await (kind === 'start' ? prepareOpening : prepareFirstLoop)(w, scene, file);
+    // f000 checkpoints resume the wake-up from its beginning, so replay its preface too.
+    if (shouldPlayPreface(kind))
+      candidate.loop.preface = createPrefaceOverlay(
+        await loadPreface(w, file, textureFile, preferences.language),
+      );
     onProgress(2, 7);
     candidate.audio = await prepareAudio(
       file,
@@ -1348,6 +1390,7 @@ async function prepareSession(
     candidate.acoustics.sources = new SceneSoundSources(w, candidate.audio);
     candidate.acoustics.locators = await prepareLocatorSounds(w, scene, file, candidate.audio);
     candidate.acoustics.lamp = await prepareLamp(w, scene, file, candidate.audio);
+    candidate.loop.vertices = scene.vertices;
     onProgress(3, 7);
     const qar = await new Qar(textureFile, w, file).open();
     const surface: any = (candidate.surface = await uploadMaterials(
@@ -1360,6 +1403,7 @@ async function prepareSession(
     surface.uvs = scene.uvs;
     surface.tangents = scene.tangents;
     candidate.loop.bindGroups(surface.groups);
+    candidate.acoustics.lamp?.visual?.bindGroups(surface.groups);
     candidate.mesh = createMesh(scene.vertices, scene.indices, 'Escena original', surface);
     onProgress(4, 7);
     candidate.lighting = await lightingSystem.prepare(
@@ -1394,6 +1438,7 @@ function installSession(c: any) {
   wasm = c.wasm;
   walkScene = c.scene;
   firstLoop = c.loop;
+  firstLoop.onCheckpoint = checkpointListener;
   locomotion = c.locomotion;
   gameAudio = c.audio;
   acoustics = c.acoustics;
@@ -1422,6 +1467,7 @@ function installSession(c: any) {
     cameraFov = view.fov;
     cameraBasis = view.basis;
   }
+  checkpointListener?.({ floor: firstLoop.floor, photoWord: wasm._scene_photo_word() });
   status(
     firstLoop.opening
       ? 'Habitación inicial · despertar y salida original al pasillo'
@@ -1476,19 +1522,26 @@ async function commitOpeningExit(view: any) {
   transitioning = false;
   document.documentElement.dataset.stageTransfer = 'f000 → ' + c.floor;
 }
+export function resetPerformanceReport() {
+  frameMetrics.reset();
+}
+
 export async function loadWalk(
   file: any,
   textureFile: any,
   onProgress: any = () => {},
   kind: any = 'start',
+  checkpoint?: Checkpoint,
+  onCheckpoint?: (checkpoint: Checkpoint) => void,
 ) {
   if (busy) return false;
   busy = true;
   $('error').textContent = '';
   let candidate;
   try {
-    candidate = await prepareSession(file, textureFile, onProgress, kind);
+    candidate = await prepareSession(file, textureFile, onProgress, kind, checkpoint);
     await unloadWalk();
+    checkpointListener = onCheckpoint;
     installSession(candidate);
     if (kind === 'start') {
       const generation = sessionGeneration,
@@ -1544,7 +1597,7 @@ export async function loadWalk(
   } catch (e) {
     if (candidate && candidate.wasm !== wasm) await candidate.destroy();
     fail(e);
-    return false;
+    throw e;
   } finally {
     busy = false;
   }

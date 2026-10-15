@@ -48,7 +48,7 @@ EMSCRIPTEN_KEEPALIVE int sequence_load(const uint8_t* bytes,int size){
  next.events=next.stream->FirstLoopEvents();current()=std::move(next);return current().stream->Length();
 }
 EMSCRIPTEN_KEEPALIVE int sequence_create(const uint8_t* bytes,int size){
- if(instances.size()>=16||nextHandle==std::numeric_limits<int>::max()){error="Too many concurrent sequences";return 0;}
+ if(instances.size()>=32||nextHandle==std::numeric_limits<int>::max()){error="Too many concurrent sequences";return 0;}
  const int previous=selected,id=nextHandle++;instances[id]=std::make_unique<SequenceState>();selected=id;
  const int frames=sequence_load(bytes,size);selected=previous;
  if(!frames){instances.erase(id);return 0;}return id;

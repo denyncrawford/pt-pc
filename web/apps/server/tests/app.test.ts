@@ -63,6 +63,11 @@ test('Hono preserves origin checks, token routes, raw uploads, ranges and HEAD',
     expect((await request(asset, { method: 'DELETE' })).status).toBe(405);
     expect((await request(prefix)).status).toBe(200);
     expect((await request(prefix + 'launcher.js')).status).toBe(200);
+    for (const module of ['preface.js', 'preface-overlay.js', 'lamp.js']) {
+      const response = await request(prefix + module);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toContain('javascript');
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
