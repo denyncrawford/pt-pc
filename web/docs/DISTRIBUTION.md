@@ -3,6 +3,83 @@
 Status: proposed architecture, not a shipped release or public hosting clearance.
 Updated 2026-10-14. Preserve root `bun dev`, React wizard and browser WASM/WebGPU.
 
+## Delivery decision — 2026-10-16
+
+Gameplay is paused at the f070 checkpoint in ROADMAP.txt. Distribution is now the
+active workstream. This update specifies the deliverable; it does not publish an
+image or claim the existing local server is hosting-ready.
+
+**Primary delivery: one private, self-hosted container, one origin, one owner.**
+Bun/Hono serves built frontend files, WASM, API and original-resource ranges.
+Build with separate pinned stages for Emscripten, Vite/Bun and the .NET Linux
+extractor; copy only the required runtime files into the final non-root image.
+Do not copy a working checkout wholesale: build from an explicit source allowlist
+and exclude private media, PKG, extracted resources, `.data`, caches and outputs
+from every layer/context. Generate app builds in CI; never commit `dist`.
+
+### What users receive
+
+| Delivery                | Proposed name/location                          | Contents                                                                                                |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Container               | `ghcr.io/denyncrawford/pt-pc-web:<web-version>` | Server, frontend, WASM, validated Linux helper and runtime dependencies; no game assets.                |
+| GitHub prerelease       | `web-v0.1.0-alpha.1` (proposed first tag)       | Web-specific status, supported architecture, image digest, changes, installation and known limitations. |
+| Deployment kit          | `pt-web-<version>-deploy.tar.gz`                | Compose file, environment example without secrets, install/update/backup instructions.                  |
+| Verification            | `SHA256SUMS`, SBOM and provenance               | Checksums for attached files; image digest recorded separately; dependency/build provenance.            |
+| License/source material | Notices plus matching source/patches            | Upstream attribution and source obligations for shipped dependencies, including extractor components.   |
+
+Names are a proposed contract, not existing downloadable artifacts. GHCR is the
+primary image distribution channel; GitHub Releases is the discoverable entry
+point and deployment-kit download. Public GHCR images support anonymous pulls.
+Keep web tags separate from native releases. Pin installation to an immutable
+version/digest; do not default early adopters to a moving `latest` tag. Optional
+per-architecture Docker image archives can be added for offline installs after
+size and load/run validation; they are not required for the first release.
+
+### Build, review and publish sequence
+
+1. Implement storage recovery and validate Linux extraction/dependency packaging.
+   The current macOS publish script emits multiple files, but the host copies only
+   one executable; resolve this before reusing the helper in a container.
+2. Implement private hosting configuration and authentication, stable public
+   origin, streaming/range behavior and upload/import recovery. Preserve local dev.
+3. Build an amd64 image from a clean source checkout with frozen dependencies.
+   Archive exact dependency sources/patches and notices where required. Arm64 is a
+   separate validation target, not an assumed consequence of a multiarch manifest.
+4. Validate synthetic HTTP/security tests and private real-PKG import/play tests.
+   Private assets and captures never enter CI artifacts, logs, caches or the image.
+   Inspect the actual release archive and every image layer, not just Git changes.
+5. Test a clean host with Docker only, HTTPS and authentication. Import, resume
+   interrupted upload, play, restart, update, continue, cancel and delete. Preserve
+   the existing browser checkpoint across reloads; cross-device sync is not shipped.
+6. Prepare a local release candidate, deployment kit, checksums and draft notes.
+   Record the tested gameplay boundary (currently f070) and all remaining blockers.
+7. Publication is a separate explicit maintainer action after review. A future
+   workflow should use manual dispatch/approval; do not commit, tag, push, upload,
+   publish releases or publish images automatically as part of ordinary development.
+
+`audit:publication` checks staged source only. Add a separate artifact/layer audit
+before release; passing the source audit with zero staged files proves nothing
+about release contents. App JS/CSS/WASM/helper binaries are allowed in the final
+software image when built from source; copyrighted game resources are not.
+
+### First release scope and installation
+
+Persistent `/data` is the first supported storage mode. Temporary sessions and
+automatic expiry remain a later option so the initial kit has one clear lifecycle.
+Keep browser saves separate from resource retention; remote save sync is pending.
+One owner/library is the supported model; do not expose public anonymous uploads.
+Resource sizing and hosting compatibility must come from measured import/play
+runs, not guessed CPU/RAM numbers. Prefer a long-running service with a persistent
+disk, then publish provider-specific templates only after testing them.
+
+The current and planned installation paths are in [SERVER-INSTALL.md](SERVER-INSTALL.md).
+No Linux Dockerfile, deployment kit or release workflow is delivered by this
+planning change. The next implementation milestone is the portable extractor and
+storage lifecycle, followed by the private container and release acceptance tests.
+
+References: [GHCR distribution](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry),
+[Docker multi-stage builds](https://docs.docker.com/get-started/docker-concepts/building-images/multi-stage-builds/).
+
 ## Decision
 
 Confirmed scope: users deploy their own instance; the developer instance is for
@@ -39,7 +116,7 @@ not remove WebGPU or GPU requirements. Cloud video streaming is outside this pla
   storage and their own PKG using the existing wizard. No sample game library.
 - Default to persistent mode: a disk-backed `/data` volume retains the verified
   library across restarts; uploaded PKG files are deleted after import commits.
-- Offer ephemeral mode: bounded local scratch storage, explicit delete and expiry,
+- Later, offer ephemeral mode: bounded local scratch storage, explicit delete and expiry,
   startup cleanup and a clear re-upload state when the deployment loses its disk.
   A mounted volume is optional in this mode, not a requirement for ordinary play.
 - Keep saves/settings separate from asset retention so a small persistent state

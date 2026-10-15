@@ -6,6 +6,8 @@
 static std::unique_ptr<pt::LuaVm> script_vm;
 static std::unordered_map<const pt::fox2::Entity*,bool> body_enabled;
 static std::unordered_map<std::string,bool> script_bgm;
+static int script_loop_count=1;
+static int ScriptLoopCount(lua_State* L){lua_pushinteger(L,script_loop_count);return 1;}
 static std::string script_error,script_floor="f010";
 struct ScriptCommand { std::string name;std::vector<std::string> args; };
 static std::vector<ScriptCommand> script_commands;
@@ -40,10 +42,21 @@ static void PushScriptElement(lua_State* L,const pt::fox2::Entity& e,const pt::f
 }
 static int ScriptVisible(lua_State* L){model_visible[ScriptRef(L)->entity]=lua_toboolean(L,lua_upvalueindex(1));return 0;}
 static int ScriptObjectId(lua_State* L){const std::string type=luaL_checkstring(L,1),name=luaL_checkstring(L,2);
+ if(type=="ShPlayer"&&name=="Player"){auto* ref=static_cast<ScriptEntity*>(lua_newuserdata(L,sizeof(ScriptEntity)));*ref={nullptr,false};luaL_getmetatable(L,"PT.Entity");lua_setmetatable(L,-2);return 1;}
  // Native ShGimmick IDs use the registered parts type, not the FOX2 entity name.
  if(type=="ShGimmick")for(const auto& locator:stage->game_objects)if(locator.class_name==type){const auto* parameters=stage->file->GetEntity(*locator.entity,"parameters");if(parameters&&stage->file->GetString(*parameters,"partsType")==name){PushScriptEntity(L,locator.entity);return 1;}}
 for(const auto& e:stage->file->Entities())if(stage->file->GetString(e,"name")==name){PushScriptEntity(L,&e);return 1;}lua_pushnil(L);return 1;}
-static int ScriptObjectCommand(lua_State* L){auto* e=ScriptRef(L);lua_getfield(L,2,"id");const std::string id=luaL_checkstring(L,-1);lua_pop(L,1);if(id!="StageLight")return luaL_error(L,"Unsupported GameObject command");lua_getfield(L,2,"switch");body_enabled[e->entity]=lua_toboolean(L,-1);lua_pop(L,1);return 0;}
+static int ScriptObjectCommand(lua_State* L){auto* e=ScriptRef(L);lua_getfield(L,2,"id");const std::string id=luaL_checkstring(L,-1);lua_pop(L,1);if(!e->entity){
+ if(id=="SetDisableLeftStick"||id=="UnsetDisableLeftStick"){script_commands.push_back({"MovementLock",{id=="SetDisableLeftStick"?"1":"0"}});return 0;}
+ return luaL_error(L,"Unsupported player command: %s",id.c_str());
+ }if(id=="PlayMotion"){
+ const auto* params=stage->file->GetEntity(*e->entity,"parameters");
+ const auto type=params?stage->file->GetString(*params,"partsType"):"";
+ if(type!="Baby")return luaL_error(L,"Unsupported motion target");
+ lua_getfield(L,2,"motionKey");const std::string key=luaL_checkstring(L,-1);lua_pop(L,1);
+ lua_getfield(L,2,"returnToIdle");const bool idle=lua_isnil(L,-1)||lua_toboolean(L,-1);lua_pop(L,1);
+ script_commands.push_back({"BabyMotion",{key,idle?"1":"0"}});return 0;
+ }if(id!="StageLight")return luaL_error(L,"Unsupported GameObject command: %s",id.c_str());lua_getfield(L,2,"switch");body_enabled[e->entity]=lua_toboolean(L,-1);lua_pop(L,1);return 0;}
 static int ScriptGet(lua_State* L){
  const auto* r=ScriptRef(L);const std::string key=luaL_checkstring(L,2);const auto& f=*stage->file;
  if(key=="Visible"||key=="Invisible"){lua_pushboolean(L,key=="Visible");lua_pushcclosure(L,ScriptVisible,1);}
@@ -74,11 +87,11 @@ static void ScriptBudget(lua_State* L,lua_Debug*){luaL_error(L,"Script exceeded 
 static void ScriptRegister(lua_State* L,const char* module,const char* key,lua_CFunction fn){lua_getglobal(L,module);if(!lua_istable(L,-1)){lua_pop(L,1);lua_newtable(L);lua_pushvalue(L,-1);lua_setglobal(L,module);}lua_pushcfunction(L,fn);lua_setfield(L,-2,key);lua_pop(L,1);}
 static void ScriptRegisterCommand(lua_State* L,const char* module,const char* key){lua_getglobal(L,module);if(!lua_istable(L,-1)){lua_pop(L,1);lua_newtable(L);lua_pushvalue(L,-1);lua_setglobal(L,module);}lua_pushstring(L,key);lua_pushcclosure(L,ScriptCommandCall,1);lua_setfield(L,-2,key);lua_pop(L,1);}
 static void ResetScriptHost(){
- script_vm=std::make_unique<pt::LuaVm>();auto* L=script_vm->State();body_enabled.clear();script_commands.clear();script_error.clear();script_bgm.clear();script_floor="f010";
+ script_vm=std::make_unique<pt::LuaVm>();auto* L=script_vm->State();body_enabled.clear();script_commands.clear();script_error.clear();script_bgm.clear();script_floor="f010";script_loop_count=1;
  for(const char* name:{"os","io","package","require","dofile","loadfile","debug"}){lua_pushnil(L);lua_setglobal(L,name);}
  luaL_newmetatable(L,"PT.Entity");lua_pushcfunction(L,ScriptGet);lua_setfield(L,-2,"__index");lua_pushcfunction(L,ScriptSet);lua_setfield(L,-2,"__newindex");lua_pop(L,1);
  ScriptRegister(L,"GameObject","GetGameObjectId",ScriptObjectId);ScriptRegister(L,"GameObject","SendCommand",ScriptObjectCommand);
- ScriptRegister(L,"Fox","Log",ScriptLog);ScriptRegister(L,"Entity","IsNull",ScriptNull);ScriptRegister(L,"GameFloorLevel","IsCurrentFloorName",ScriptFloor);
+ ScriptRegister(L,"Fox","Log",ScriptLog);ScriptRegister(L,"Entity","IsNull",ScriptNull);ScriptRegister(L,"GameFloorLevel","IsCurrentFloorName",ScriptFloor);ScriptRegister(L,"GameFloorLevel","GetLoopCount",ScriptLoopCount);
  lua_pushcfunction(L,ScriptVector);lua_setglobal(L,"Vector3");
  for(const char* name:{"LoadStage","ActivateStage","ChangeStageId","UnloadStage"})ScriptRegisterCommand(L,"ShGameMainControl",name);
  ScriptRegisterCommand(L,"DemoDaemon","Play");ScriptRegister(L,"DemoDaemon","SetDemoTransform",ScriptDemoTransform);

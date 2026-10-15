@@ -5,6 +5,12 @@ static std::map<std::string,std::string> post_luts;
 static glm::vec3 post_scale{1,1.12f,1.3f};static float post_start=.4f,post_end=.6f;
 static int PostReload(lua_State* L){return post_parameters.LoadFromLua(L,1)?0:luaL_error(L,"Invalid parameter tables");}
 extern "C" {
+EMSCRIPTEN_KEEPALIVE const float* handy_light_data(){
+ static float d[28];const auto& p=post_parameters.handy_light;constexpr float pi=3.14159265358979323846f;
+ const auto rgb=pt::light_math::ColorFromTemperature(p.temperature,0,p.lumen,{p.color[0],p.color[1],p.color[2]})*p.power_scale/(pt::light_math::SpotSolidAngle(p.umbra_angle,p.penumbra_angle,p.attenuation_exponent)*pi);
+ std::fill(std::begin(d),std::end(d),0);d[3]=p.outer_range;for(int i=0;i<3;i++)d[4+i]=rgb[i];
+ d[10]=-1;d[11]=cos(p.umbra_angle*pi/360);d[12]=cos(p.penumbra_angle*pi/360);d[13]=p.attenuation_exponent;d[14]=p.inner_range;d[15]=1;d[17]=1;d[18]=p.lumen;d[19]=pt::light_math::SourceRadius(p.light_size);d[20]=-.01f;d[21]=-.005f;d[22]=1;d[23]=cos(78*pi/360);d[24]=100000;return d;
+}
 EMSCRIPTEN_KEEPALIVE void post_reset(){post_parameters={};post_luts.clear();post_scale={1,1.12f,1.3f};post_start=.4f;post_end=.6f;}
 EMSCRIPTEN_KEEPALIVE int post_import(const uint8_t* bytes,int size,int lua){
  if(size<=0)return 0;

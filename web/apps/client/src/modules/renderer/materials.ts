@@ -1,7 +1,7 @@
 import { makeLightingLuts, materialTableRow } from './material-shading';
 // FMDL material tables and QAR/FTEX layout mirror the native asset readers.
 import { readSlice, MAX_ENTRY, Psarc } from '../../lib/archives';
-function check(v: any, m: any = 'Recurso de textura inválido') {
+function check(v: any, m: any = 'Invalid texture resource') {
   if (!v) throw Error(m);
 }
 export function readMaterials(bytes: any) {
@@ -89,7 +89,7 @@ export class Qar {
   async open() {
     const footer = await readSlice(this.file, this.file.size - 36, 36),
       d = new DataView(footer.buffer);
-    check(d.getUint16(22, true) === 0x7161, 'QAR sin índice válido');
+    check(d.getUint16(22, true) === 0x7161, 'QAR has no valid index');
     const count = d.getUint32(16, true);
     check(count <= 1000000);
     const bytes = await readSlice(this.file, d.getUint32(24, true) * 16, count * 16),
@@ -130,7 +130,7 @@ export class Qar {
       }
       if (this.fallback.has(name)) return this.fallback.get(name);
     }
-    throw Error('Falta textura: ' + name);
+    throw Error('Missing texture: ' + name);
   }
 }
 async function inflate(bytes: any, expected: any) {
@@ -162,10 +162,15 @@ export async function loadFtex(qar: any, stem: any, maxSize: any = 1024, options
     width = d.getUint16(10, true),
     height = d.getUint16(12, true),
     flags = d.getUint32(28, true);
-  check(width && height && !(flags & 4) && (options.volume || d.getUint16(14, true) <= 1));
+  check(
+    width &&
+      height &&
+      (!(flags & 4) || options.face !== undefined) &&
+      (options.volume || d.getUint16(14, true) <= 1),
+  );
   let level = options.level ?? 0;
   while (Math.max(width >> level, height >> level) > maxSize && level + 1 < h[16]) level++;
-  const e = 64 + level * 16,
+  const e = 64 + ((options.face ?? 0) * h[16] + level) * 16,
     offset = d.getUint32(e, true),
     size = d.getUint32(e + 4, true),
     file = h[e + 13],
@@ -175,7 +180,7 @@ export async function loadFtex(qar: any, stem: any, maxSize: any = 1024, options
   try {
     source = file ? await qar.read(stem + '.' + file + '.ftexs') : h;
   } catch (error) {
-    if (!options.strict && error.message.startsWith('Falta textura:') && level + 1 < h[16])
+    if (!options.strict && error.message.startsWith('Missing texture:') && level + 1 < h[16])
       return loadFtex(qar, stem, Math.max(1, Math.max(width, height) >> (level + 1)));
     throw error;
   }
@@ -248,7 +253,7 @@ export function decodeBlocks(b: any, w: any, h: any, format: any) {
     for (let i = 0; i < w * h; i++) out.set([b[i], b[i], b[i], 255], i * 4);
     return out;
   }
-  check([2, 3, 4, 5].includes(format), 'Formato FTEX no compatible: ' + format);
+  check([2, 3, 4, 5].includes(format), 'Unsupported FTEX format: ' + format);
   const stride = format === 2 ? 8 : 16,
     bw = Math.ceil(w / 4),
     bh = Math.ceil(h / 4);
@@ -395,9 +400,9 @@ export async function uploadMaterials(
       try {
         table = await loadFtex(qar, '/Assets/fox/effect/gr_pic/materials_alp_rgba32_nomip_nrt');
       } catch (e) {
-        if (!e.message.startsWith('Falta textura:')) throw e;
+        if (!e.message.startsWith('Missing texture:')) throw e;
         tableFallback = true;
-        progress('Tabla de materiales ausente: fallback nativo activo');
+        progress('Missing material table: native fallback active');
       }
     }
     bytes += 36864;
@@ -451,7 +456,7 @@ export async function uploadMaterials(
       if (!path) return subnormal && kind === 3 ? defaults[5] : defaults[kind];
       const key = kind + path;
       if (cache.has(key)) return cache.get(key);
-      progress('Textura original: ' + path.split('/').pop());
+      progress('Original texture: ' + path.split('/').pop());
       // Cache only this texture's streams while uploading its authored mip chain.
       const streams = new Map(),
         source = {
@@ -464,14 +469,14 @@ export async function uploadMaterials(
       try {
         t = await loadFtex(source, path, Infinity, { raw: true, strict: true });
       } catch (e) {
-        if (!e.message.startsWith('Falta textura:')) throw e;
+        if (!e.message.startsWith('Missing texture:')) throw e;
         missing.push(e.message);
         cache.set(key, defaults[kind]);
         return defaults[kind];
       }
       check(
         Math.max(t.width, t.height) <= (device.limits?.maxTextureDimension2D ?? 8192),
-        'Textura excede el tamaño admitido por la GPU: ' + path,
+        'Texture exceeds the GPU size limit: ' + path,
       );
       if (kind === 1) normalAlpha.set(path, t.format === 4);
       const srgb = kind === 0 && !masked && t.srgb;

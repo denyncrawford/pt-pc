@@ -161,6 +161,45 @@ FidelityFX, NVIDIA DLSS and Intel XeSS for the upscalers, the Khronos OpenXR loa
 Noto fonts for the added languages, and LibOrbisPkg in the installer. Their notices ship in `licenses/` next to the
 executable.
 
+---
+
+## Web port — development in progress
+
+This fork develops a browser adaptation of LoreanXavier's native P.T. PC port.
+The web version uses **React/TypeScript, WebGPU and a C++ engine compiled to WASM**,
+with a **Bun + Hono backend** for PKG import and resource delivery. Both apps are
+intended to ship in one self-hosted container. Rendering and audio run on the
+player's device, not on the hosting server.
+
+**Work in progress — not the complete native game.** As of 2026-10-16, the web
+playable boundary is **f070**, after the bathroom and XMark portrait stages.
+The route to f080 and the remaining loops/ending are not yet enabled. Gameplay
+work is temporarily paused to prepare distribution. See the
+[checkpoint and roadmap](web/docs/ROADMAP.txt) and [event register](web/docs/REGISTRO-EVENTOS.txt).
+
+- [Web setup, features and current limitations](README-WEB.md)
+- [Server installation: available setup and planned Docker release](web/docs/SERVER-INSTALL.md)
+- [Distribution and release design](web/docs/DISTRIBUTION.md)
+
+There is **no published web Docker release established by these instructions**.
+The planned delivery is a code-only GHCR image plus a GitHub prerelease deployment
+kit. Native downloads described above are not installers for the browser version.
+Bring your own compatible copy; no PKG or extracted game content is included in
+web distribution. Generated application builds belong in release artifacts, not Git.
+
+### Web limitations compared with the native port
+
+| Area          | Current web status                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Full game     | Playable boundary f070; f080 onward and ending pending.                                                                         |
+| Presentation  | Lighting, shadows, Lisa visibility and effects still require fidelity review; not all native VFX are supported.                 |
+| Performance   | Stalls around scene events/end of hallway remain under investigation; no guaranteed frame rate.                                 |
+| Saves         | Progress stored in this browser/origin; no server or cross-device sync, no native-save import.                                  |
+| Hardware      | Requires a compatible WebGPU browser/device; remote access needs HTTPS. Hosting does not replace the player's GPU.              |
+| Native extras | No claim of parity for Vulkan ray tracing, DLSS/FSR/XeSS, frame generation, photo mode, museum or advanced controller features. |
+| Hosting       | Existing launcher is local-only; Linux extraction, authentication, proxy support and resumable uploads are release blockers.    |
+
+
 ## License
 
 The port's own code is under the MIT license (see LICENSE). The third-party pieces listed above keep their own

@@ -9,7 +9,7 @@ export function readSkin(bytes: any, vertexCount: any) {
     f = new Map(),
     b = new Map();
   const fail = () => {
-    throw Error('Pesos o grupos FMDL inválidos');
+    throw Error('Invalid FMDL weights or groups');
   };
   const table = u32(8),
     fc = u32(32),
@@ -147,12 +147,12 @@ export async function loadPlayerMesh(w: any, file: any) {
     name = '/Assets/sh/chara/plr/Scenes/plr0_main0_def.fmdl';
   const helper = '/Assets/sh/chara/plr/Scenes/plr0_main0_def.frdv';
   withEntry(w, fpkEntry(pkg, helper), helper, (p: any, n: any) => {
-    if (!w._locomotion_help(p, n)) throw Error('Huesos auxiliares del jugador incompatibles');
+    if (!w._locomotion_help(p, n)) throw Error('Unsupported player helper bones');
   });
   return withEntry(w, fpkEntry(pkg, name), name, (p: any, n: any) => {
     try {
-      if (!w._sequence_player_skeleton(p, n)) throw Error('Esqueleto de secuencia incompatible');
-      if (w._decode_fmdl(p, n)) throw Error('Malla del jugador incompatible');
+      if (!w._sequence_player_skeleton(p, n)) throw Error('Unsupported sequence skeleton');
+      if (w._decode_fmdl(p, n)) throw Error('Unsupported player mesh');
       const count = w._vertex_count(),
         vertices = w.HEAPF32.slice(w._vertex_ptr() / 4, w._vertex_ptr() / 4 + count * 6),
         uvs = w.HEAPF32.slice(w._uv_ptr() / 4, w._uv_ptr() / 4 + count * 2),
@@ -265,7 +265,7 @@ export async function createPlayerBody(
         } finally {
           w._free(mp);
         }
-        if (count <= mesh.maxJoint || count > 256) throw Error('Paleta de huesos incompatible');
+        if (count <= mesh.maxJoint || count > 256) throw Error('Unsupported bone palette');
         const p = (sequence ? w._sequence_player_skin_ptr() : w._locomotion_skin_ptr()) / 4;
         device.queue.writeBuffer(palette, 0, w.HEAPF32.slice(p, p + count * 16));
         const pass = encoder.beginComputePass();

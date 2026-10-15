@@ -16,10 +16,10 @@ export async function prepareEffects(w: any, scene: any, file: any) {
     dependencies = new Set();
   const load = (path: any) => {
     const read = entries.get(path);
-    if (!read) throw Error('Falta recurso VFX: ' + path);
+    if (!read) throw Error('Missing VFX resource: ' + path);
     withEntry(w, read(), path, (p: any, n: any) => {
       if (!withString(w, path, (k: any) => w._vfx_file(k, p, n)))
-        throw Error('Recurso VFX inválido: ' + path);
+        throw Error('Invalid VFX resource: ' + path);
     });
   };
   try {
@@ -27,11 +27,11 @@ export async function prepareEffects(w: any, scene: any, file: any) {
       load(path);
       const manifest = withString(w, path, (k: any) => {
         const p = w._vfx_manifest(k);
-        if (!p) throw Error('No se pudo compilar VFX: ' + path);
+        if (!p) throw Error('Could not compile VFX: ' + path);
         return JSON.parse(w.UTF8ToString(p));
       });
       if (manifest.unsupported.length)
-        throw Error('Nodos VFX pendientes: ' + path + ': ' + manifest.unsupported.join(', '));
+        throw Error('Unsupported VFX nodes: ' + path + ': ' + manifest.unsupported.join(', '));
       if (!manifest.shapes.length && !manifest.flares.length) continue;
       manifests.set(path, manifest);
       for (const name of manifest.flares)
@@ -43,10 +43,10 @@ export async function prepareEffects(w: any, scene: any, file: any) {
         const model = [...entries.keys()].find(
           (path: any) => path.endsWith('.fmdl') && resources.code(path) === shape.model,
         );
-        if (!model) throw Error('Falta modelo VFX: ' + shape.model);
+        if (!model) throw Error('Missing VFX model: ' + shape.model);
         withEntry(w, entries.get(model)(), model, (p: any, n: any) => {
           try {
-            if (w._decode_fmdl(p, n)) throw Error('Modelo VFX inválido: ' + model);
+            if (w._decode_fmdl(p, n)) throw Error('Invalid VFX model: ' + model);
             if (
               !withString(w, shape.model, (k: any) =>
                 w._vfx_model(
@@ -59,7 +59,7 @@ export async function prepareEffects(w: any, scene: any, file: any) {
                 ),
               )
             )
-              throw Error('Geometría VFX inválida');
+              throw Error('Invalid VFX geometry');
           } finally {
             w._release_geometry();
           }

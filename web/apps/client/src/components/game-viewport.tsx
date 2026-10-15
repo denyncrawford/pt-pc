@@ -24,7 +24,7 @@ export function GameViewport({ session: s }: { session: Session }) {
         >
           <p>{s.saveError}</p>
           <button onClick={s.retrySave} className="mt-2 border px-3 py-2">
-            Reintentar guardado
+            Retry save
           </button>
         </div>
       )}
@@ -40,24 +40,24 @@ export function GameViewport({ session: s }: { session: Session }) {
           </>
         )}
         <div className="my-3 flex flex-wrap gap-2.5">
-          {s.development && <button onClick={s.begin}>Jugar</button>}
+          {s.development && <button onClick={s.begin}>Play</button>}
           <button
             hidden={s.capture}
             onClick={s.openMenu}
             className="rounded-xs border border-[#555] bg-black/50 px-5 py-[13px] text-[#eee]"
           >
-            Pausa / Opciones
+            Pause / Options
           </button>
           {s.development && (
             <>
-              <button onClick={() => control('reset').click()}>Volver al inicio</button>
-              <button onClick={() => void s.library()}>Biblioteca</button>
+              <button onClick={() => control('reset').click()}>Reset position</button>
+              <button onClick={() => void s.library()}>Library</button>
             </>
           )}
         </div>
         {s.development && (
           <>
-            <small>WASD: mover · ratón: mirar · R: inicio · Esc: pausa.</small>
+            <small>WASD: move · mouse: look · R: reset position · Esc: pause.</small>
             <DeveloperTools />
             <EngineText id="error" role="alert" className="whitespace-pre-wrap text-[#ffb7a3]" />
           </>
@@ -78,7 +78,7 @@ export function GameViewport({ session: s }: { session: Session }) {
           ref={bindPrefaceCanvas}
           hidden={control('preface').hidden}
           className="pointer-events-none absolute inset-0 size-full bg-black"
-          aria-label="Apertura original"
+          aria-label="Original opening"
         />
         <div
           hidden={control('preface').hidden}
@@ -100,7 +100,7 @@ export function GameViewport({ session: s }: { session: Session }) {
           className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[#111c] px-5 py-3 text-white"
           aria-live="polite"
         >
-          {notice.textContent || 'Preparando pasillo'}
+          {notice.textContent || 'Preparing hallway'}
         </button>
       </div>
       {s.development && (

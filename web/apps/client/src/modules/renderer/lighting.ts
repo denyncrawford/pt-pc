@@ -11,7 +11,7 @@ export function selectLights(wasm: any, preset: any = 'ID10') {
       data = wasm.HEAPF32.slice(p, p + 28);
     if ((preset || data[16]) && data[18] > 0 && data[3] > 0) lights.push({ name, data });
   }
-  if (!lights.length || lights.length > MAX_LIGHTS) throw Error('Conjunto de luces no compatible');
+  if (!lights.length || lights.length > MAX_LIGHTS) throw Error('Unsupported light set');
   return lights;
 }
 export function multiply(a: any, b: any) {
@@ -28,6 +28,61 @@ const dot = (a: any, b: any) => a.reduce((n: any, v: any, i: any) => n + v * b[i
     a[0] * b[1] - a[1] * b[0],
   ],
   norm = (a: any) => a.map((v: any) => v / Math.hypot(...a));
+// Spot shadow frustum follows SceneRenderer::BuildLights: authored shadow cone
+// and inner range clip the fixture around the emitter, without removing casters.
+export function shadowMatrix(light: Float32Array, face: number) {
+  if (light[11] < 0) return faceMatrix(light.slice(0, 3), face, Math.max(1, light[3]));
+  const forward = norm([...light.slice(8, 11)]);
+  const right = norm(cross(forward, Math.abs(forward[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
+  const up = cross(right, forward);
+  const eye = light.slice(0, 3);
+  const view = new Float32Array([
+    right[0],
+    up[0],
+    -forward[0],
+    0,
+    right[1],
+    up[1],
+    -forward[1],
+    0,
+    right[2],
+    up[2],
+    -forward[2],
+    0,
+    -dot(right, eye),
+    -dot(up, eye),
+    dot(forward, eye),
+    1,
+  ]);
+  const near = Math.max(light[14], 0.001),
+    far = Math.max(light[3], near * 2);
+  const angle = Math.min(
+    (179 * Math.PI) / 180,
+    Math.max(Math.PI / 180, 2 * Math.acos(Math.max(-1, Math.min(1, light[23])))),
+  );
+  const scale = 1 / Math.tan(angle / 2);
+  return multiply(
+    new Float32Array([
+      scale,
+      0,
+      0,
+      0,
+      0,
+      scale,
+      0,
+      0,
+      0,
+      0,
+      far / (near - far),
+      -1,
+      0,
+      0,
+      (far * near) / (near - far),
+      0,
+    ]),
+    view,
+  );
+}
 export function faceMatrix(eye: any, face: any, far: any = 50) {
   const dirs = [
       [1, 0, 0],
@@ -132,7 +187,7 @@ fn mirrorColor(p:vec3<f32>)->vec3<f32>{let clip=mirror.vp*vec4(p,1);let uv=clip.
 fn cubeFace(d:vec3<f32>)->u32{let a=abs(d);if(a.x>=a.y&&a.x>=a.z){return select(1u,0u,d.x>0.0);}if(a.y>=a.z){return select(3u,2u,d.y>0.0);}return select(5u,4u,d.z>0.0);}
 fn visibility(i:u32,p:vec3<f32>,n:vec3<f32>)->f32{
  let light=lighting.lights[i];if(light.flags.x<0.0||lighting.config.y<0.5){return 1.0;}
- let layer=u32(light.flags.x)*6u+cubeFace(p-light.positionRange.xyz);
+ let layer=u32(light.flags.x)*6u+select(cubeFace(p-light.positionRange.xyz),0u,light.directionCone.w>=0.0);
  let right=normalize(vec3(frame.vp[0].x,frame.vp[1].x,frame.vp[2].x));let up=normalize(vec3(frame.vp[0].y,frame.vp[1].y,frame.vp[2].y));
  let forward=-cross(right,up)*select(1.0,-1.0,frame.forward.w>1.5);
  var receiver=p-forward*light.shadow.x;
@@ -143,7 +198,7 @@ fn visibility(i:u32,p:vec3<f32>,n:vec3<f32>)->f32{
  let normal=receiverNormal*select(-1.0,1.0,dot(receiverNormal,n)>=0.0);
  receiver-=normal*min(0.0,dot(receiver-p,normal));
  let clip=lightMatrices[layer]*vec4(receiver,1);let ndc=clip.xyz/clip.w;let uv=ndc.xy*vec2(0.5,-0.5)+0.5;
- if(any(uv<vec2(0))||any(uv>vec2(1))||ndc.z>1.0){return 1.0;}
+ if(any(uv<vec2(0))||any(uv>vec2(1))||ndc.z>1.0||ndc.z<0.0||clip.w<=0.0){return 1.0;}
  // shaders/lighting.glsl: original frame-fixed four-tap pattern, adapted to forward-Z cube faces.
  let texel=1.0/vec2<f32>(textureDimensions(shadowMap));
  let d=select(vec2(-1.0),vec2(1.0),fract(0.5*(shadowPixel-0.5))>=vec2(0.3));
@@ -232,14 +287,11 @@ export async function createLighting(device: any) {
           layers = Math.max(1, shadowLights.length * 6),
           matrices = new Float32Array((layers + 6) * 16);
         if (layers > device.limits.maxTextureArrayLayers)
-          throw Error('La GPU no admite las capas de sombra de esta escena');
+          throw Error('The GPU does not support the shadow layers required by this scene');
         const probe = [0, 0, 3.5];
         for (let i = 0; i < shadowLights.length; i++)
           for (let f = 0; f < 6; f++)
-            matrices.set(
-              faceMatrix(shadowLights[i].data.slice(0, 3), f, Math.max(1, shadowLights[i].data[3])),
-              (i * 6 + f) * 16,
-            );
+            matrices.set(shadowMatrix(shadowLights[i].data, f), (i * 6 + f) * 16);
         for (let f = 0; f < 6; f++) matrices.set(faceMatrix(probe, f), (layers + f) * 16);
         const lightData = new Float32Array(8 + 128 * 28);
         lightData.set([lights.length, 1, 1, layers, ...probe, probes.length]);
@@ -435,6 +487,7 @@ export async function createLighting(device: any) {
             // before sampling when updateDynamic enables them again.
             const light = shadowLights[Math.floor(layer / 6)];
             if (light?.dynamic && !light.data[16]) continue;
+            if (light.data[11] >= 0 && layer % 6 !== 0) continue;
             const pass = encoder.beginRenderPass({
               colorAttachments: [],
               depthStencilAttachment: {
@@ -598,11 +651,7 @@ export async function createLighting(device: any) {
               if (lightChanged && shadowIndex >= 0)
                 for (let face = 0; face < 6; face++) {
                   const layer = shadowIndex * 6 + face;
-                  const matrix = faceMatrix(
-                    light.data.slice(0, 3),
-                    face,
-                    Math.max(1, light.data[3]),
-                  );
+                  const matrix = shadowMatrix(light.data, face);
                   matrices.set(matrix, layer * 16);
                   device.queue.writeBuffer(shadowUniforms[layer], 0, matrix);
                 }
@@ -755,7 +804,7 @@ export async function createLighting(device: any) {
 export function parseLpsh(bytes: any) {
   const d = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
     need = (ok: any) => {
-      if (!ok) throw Error('LPSH inválido');
+      if (!ok) throw Error('Invalid LPSH');
     };
   need(bytes.length >= 176 && d.getUint32(0, true) === 3);
   const count = d.getUint32(124, true),
@@ -830,12 +879,12 @@ export function mirrorPlane(vertices: any, indices: any, groups: any) {
         plane = [...unit, -dot(unit, a)];
       }
     }
-  if (!plane) throw Error('No se encontró la superficie original del espejo');
+  if (!plane) throw Error('The original mirror surface was not found');
   for (const g of groups.filter((g: any) => g.mirror))
     for (let i = g.first; i < g.first + g.count; i++) {
       const p = vertices.subarray(indices[i] * 6, indices[i] * 6 + 3);
       if (Math.abs(dot(plane.slice(0, 3), p) + plane[3]) > 0.015)
-        throw Error('El espejo original no es plano');
+        throw Error('The original mirror is not planar');
     }
   return plane;
 }

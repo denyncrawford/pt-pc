@@ -31,10 +31,10 @@ f005 | cuadro caído, cucarachas/golpes y regreso para abrir paso | V lógica de
 f020 | secuencia gc_p04_340 y continuidad | V pruebas de ruta | revisión visual/audio pendiente.
 f030 | zoom en puerta entreabierta, Lisa, cierre y apertura de paso; gc_p01_021 → gc_p01_010 | V lógica; usuario confirma susto | comparación controlada pendiente.
 f040 | aparición/desaparición del pasillo, llanto y grupos de luz; gc_p04_300/350 | EC: flags probadas, usuario NO ve a Lisa; puerta atravesable reportada | prioridad actual: grupos renderizables, materiales, profundidad y colisión.
-f060 | siguiente bloque del baño; inventario gc_p03_070/011, gc_p01_110, gc_p00_030 → gc_p01_050, gc_p01_090/020/022 | EC: entrada/restauración, luces gc_p03_070, cucarachas gc_p03_011 y apertura gc_p01_110 implementadas; linterna y resto del baño pendientes | implementar cadena completa y validar destino antes de guardar.
-f050 | XMark activo, salida exige IsCleared(XMark); gc_p04_320 | P | portar interacción del retrato, consecuencias y repetición sin resolución (N2).
-f070 | preparación Hello; gc_p04_120/280 | P | inventariar callbacks, ambiente, Lisa y física de objetos; asociar acontecimientos visuales con N5.
-f080 | preparación Hello; gc_p02_520 | P | cotejar variante de escenario/iluminación y transición con N5.
+f060 | baño, linterna, bebé, espejo y salida a f050 | V recorrido lógico con archivo local; usuario confirma cadena y salida | comparación audiovisual exhaustiva pendiente.
+f050 | XMark y salida tras resolver retrato | V interacción, persistencia y transición animada a f070 | repetición sin resolver y persecución pendientes; no declarar fase completa.
+f070 | HelloPrepare; gc_p04_120 ventana/Lisa/cristales y gc_p04_280 respiración | V recorrido lógico, partículas nativas, checkpoint y prueba GPU aislada | revisión audiovisual dentro del juego pendiente; salida a f080 bloqueada explícitamente.
+f080 | HelloPrepare; Freezer CallSound, radio, luces y gc_p02_520 | P | integrar frigorífico, anclaje CNP_FRZ_INNER y Play_voice_baby_mimicry_02 antes de habilitar salida f070.
 f090 | Hello activo, salida exige IsCleared(Hello) | P | portar condiciones de mirada, letras y repetición (N2/N4).
 f100 | Hello forzado resuelto (N2) | P | inventariar radio, ambiente y eventos de salida; no asumir ausencia de trabajo porque no haya cinemática listada.
 f110 | Peephole activo; gc_p02_090 | P | portar mirada/tiempo, cámara, corredor alterado y salida según N4/N5.
@@ -49,13 +49,16 @@ Photo: cinco fragmentos del mundo y uno del menú; recogida/efectos/PhotoWord im
 Lisa: separar actor del baño f030, representación del pasillo f040 y apariciones/posesión/ataques posteriores. Registrar trigger, mirada/distancia, transformación, duración, audio, efecto sobre control y salida. No extrapolar cobertura f030 a todas las apariciones.
 Puertas: distinguir lobby, baño y salida tras escaleras. Matriz cerrada/entreabierta/animada/abierta con malla y propietario de colisión; fallo de destino conserva el origen.
 Audio/luz: inventario por floor y condición, no solo por archivo. Radio, lluvia, lámpara, llanto, golpes, pasos, relojes y silencios forman parte del recorrido.
-Guardado: actualmente floor + PhotoWord; ampliar con versión/migración para estados de nuevos puzzles según checkpoint nativo. Preservar copias y no sustituir guardado ante error.
+Guardado: floor + PhotoWord + xmarkWord opcional, compatible con partidas antiguas; f070 admitida. Ampliar con estados de siguientes puzzles sin sobrescribir partidas ante errores.
 Rendimiento: comparar primera activación y repetición de cada secuencia; carga, CPU/GPU, frame times y recursos vivos. No reducir assets para ocultar tirones.
 
-DÓNDE ESTAMOS
-Última evidencia del usuario: susto del baño funciona; alcanza cambios de luz del pasillo posterior, pero Lisa no se ve y una puerta se atraviesa. No prueba f060 completa.
-Última evidencia automática previa: 118 tests pasan en suite integrada; corrección de reinicio: 10 tests específicos pasan. Son resultados históricos, no una nueva ejecución de toda la suite.
-Próxima entrega: comprobar píxeles de Lisa f040, sustituir frontera provisional por preparación real de destino y medir FPS de ruta; después f060. El plan detallado y criterios de cierre están en PLAN-JUGABILIDAD.txt. ROADMAP.txt conserva historial; este registro mantiene la matriz actual.
+DÓNDE ESTAMOS — 2026-10-16
+El usuario confirma la salida del baño y la resolución del retrato. Ahora se
+conecta la salida animada f050→f070. Los eventos originales de f070 y su
+checkpoint pasan pruebas con la copia local; f080 sigue fuera del límite.
+Las comparaciones audiovisuales completas y el perfil de FPS siguen abiertos.
+Las actualizaciones siguientes conservan el historial; el estado vigente es
+la matriz y la entrada fechada al final de este registro.
 
 ACTUALIZACIÓN DE EJECUCIÓN — 2026-10-14
 El límite accesible se amplía desde f040 a la entrada y apertura del baño de f060. Se elimina el bloqueo de carga por gc_p03_070 y se reabre el checkpoint existente sin modificar PhotoWord.
@@ -122,3 +125,82 @@ Salida tras escaleras: la animación escribe en la geometría activa incluso
 si la lámpara amplió/reasignó los buffers; prueba de movimiento por cada salida.
 Lámpara: cono limitado como ToSceneLight nativo (máximo 179 grados), evitando
 confundirlo con una luz puntual. Se mantienen las sombras originales.
+
+2026-10-16 — f060 / Open Bathroom: conexión comprobada por waypoints
+IsInView(checkLocator,checkAreaSize): consumidor web implementado; botón vacío
+en condiciones originales de linterna/bebé/espejo (no imponer Zoom adicional).
+Linterna → gc_p00_030 (cámara/cuerpo/audio/HandyOn) → FinishMotion inicia
+ gc_p01_050 → habilita trap bebé → gc_p01_090 + ShGimmick Baby PlayMotion
+ Baby3 → habilita trap espejo → gc_p01_020 → habilita trap salida baño →
+ PlayerInputDir hacia locator original inicia gc_p01_022; bloquea movimiento,
+ PadEnable lo devuelve → puerta variante170 → gc_p00_010 → f050.
+Baby3 despacha cue GANI frame279, evento479254323 en su hueso original.
+La entrada f050 restaura PhotoWord y linterna habilitada. Su interacción XMark
+sigue pendiente; no se anuncia f070 ni repeticiones de f050 como jugables.
+Evidencia: tests/f060.test.ts y tests/spot-shadow.test.ts; artefactos privados
+work/bath-tests.log. Falta comparación visual/GPU y audio audible de esta cadena.
+
+2026-10-16 — XMark del retrato: interacción y persistencia
+IMPLEMENTADO Y PROBADO: en f050, dentro de trap_x_mark, mirar el retrato y
+pulsar E/X/Enter/Espacio o clic izquierdo activa XMark (4→8). No requiere
+fragmentos de Photo ni mantener zoom. Se intercambian XMarkInit/XMark por
+XMarkPic1 y se muestran XMarkText/XMarkText1. Evento A5FDFC86 una vez y
+F27DAC95 a los tres segundos de reloj de audio activo. Zoom sobre el texto
+revelado solicita caption 4AF4F3D4 de la tabla original del idioma seleccionado.
+Guardado: xmarkWord opcional, compatible con partidas antiguas; la solución
+se restaura sin borrar PhotoWord. Reiniciar explícitamente vuelve a inicio.
+Clearf050: puente a ShGameControllerMessageScript con filtros originales de
+habilitación y floor. En primera visita el listener está deshabilitado y la
+puerta del vestíbulo ya está abierta; no se fuerza otra apertura artificial.
+VALIDADO: tests/xmark.test.ts (mirada errónea, fuera del trigger, pulsación,
+sonido una sola vez, texto por zoom, variantes, guardado/recarga/reinicio),
+world-photo y f060→f050. Verificación lógica con archivo local, no visual GPU.
+LÍMITE ACTUAL: f050 con retrato resoluble; f070 NO habilitada. La puerta de
+escaleras conserva colisión. Repeticiones f050/GetLoopCount y persecución de
+Lisa siguen pendientes. XMarkPicEf cambia su visibilidad nativa, pero su
+presentación VFX GPU no está certificada. No declarar f050 completa.
+SIGUIENTE BLOQUEO CONCRETO: gc_p04_120 (f070), frame127, exige el efecto
+/Assets/sh/effect/vfx_data/dust/fx_sh_dstgls01_s1.vfx. El reproductor de demos
+solo admite efectos sonoros; falta enlazar simulación y dibujo VFX de demos.
+Además gc_p04_280 declara HM_och0_main0_def sin pista: omitir solo metadatos
+no referenciados por eventos, sin ocultar modelos realmente necesarios; su
+functor 62B47A5B81EC debe retirar la instancia del efecto. Las pruebas de
+investigación detectaron ambos casos; no se han omitido para pasar de fase.
+PRUEBA MANUAL: recargar cliente actualizado conservando partida f050; buscar
+el retrato marcado cerca de la radio, acercarse, centrarlo y pulsar E una vez.
+Comprobar cambio del retrato y dos cues (inmediato y +3s); mirar el texto que
+aparece y usar botón derecho para leerlo. Salir/cargar: retrato resuelto y
+fragmentos conservados. No reiniciar para esta prueba. La escalera todavía
+marca el límite de implementación, no una acción adicional del jugador.
+
+2026-10-16 — salida XMark y recorrido f070
+IMPLEMENTADO: XMark resuelto permite gc_p00_010 y transición f050→f070;
+XMark no resuelto conserva la barrera. PhotoWord y xmarkWord persisten.
+HelloPrepare muestra HELL_Ican, ocultando letras del futuro puzzle activo.
+Entrada por el volumen original habilita eventos; acercamiento a la ventana
+reproduce gc_p04_120 con Lisa y cristales. gc_p04_280 se detiene al volver por
+su trigger original. Se conserva linterna y no se fuerzan eventos por tiempo.
+EffectCreate usa manifiesto/simulador nativo y transformaciones de la demo.
+EffectKill retira instancias por propietario. Material Liquid de cristales:
+normal FTEX original, seis caras de reflexión, refracción de escena HDR,
+mezcla alfa y profundidad sin escritura. Se agrupan quads compatibles y se
+reutilizan bind groups; no se han quitado sombras ni reducido assets.
+Se omiten declaraciones de modelos sin pistas NI referencias de eventos;
+modelos realmente usados y functors no soportados siguen dando error.
+VALIDADO: f060, f070 y demo-actors: 3/3 pruebas con archivo local; save-game y
+XMark: 6/6 en ejecución anterior de esta entrega. f070 verifica Lisa visible,
+partículas emitidas, respiración detenida, salida bloqueada f080, restauración
+y retirada de instancias. GPU aislada: 30 frames, tres ciclos de creación y
+destrucción, cero errores de validación; texturas reales decodificadas aparte.
+No equivale a comparación visual del juego completo ni validación audible.
+No se declara implementado el inventario completo de 13 efectos FxLocator.
+SIGUIENTE: f080 Freezer CallSound/Play_voice_baby_mimicry_02 en CNP_FRZ_INNER,
+modelo/movimiento, radio Play_radio_voice_04, luces ID51/50 y salida. gc_p02_520
+se reproduce aislada; no es una UI, y reproducirla no completa la fase.
+Después: f090 puzzle Hello, con condiciones originales y guardado propio.
+PRUEBA MANUAL: recargar cliente actualizado y continuar sin reiniciar. Desde
+f050 con retrato resuelto, bajar escaleras y acercarse a su puerta: comprobar
+animación y entrada a otra vuelta. Recorrer hasta la ventana para aparición
+y cristales, avanzar al fondo y regresar para comprobar fin de respiración.
+Salir y continuar debe conservar f070, retrato resuelto y fragmentos. La
+siguiente puerta de escaleras aún marca una frontera de implementación f080.

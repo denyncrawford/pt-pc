@@ -3,7 +3,7 @@ import { selectLights, parseLpsh, mirrorPlane, createNativeLighting } from '../r
 import { readMaterials } from '../renderer/materials';
 import { Psarc, parseFpk, fpkEntry, MAX_ENTRY } from '../../lib/archives';
 export function withEntry(wasm: any, bytes: any, name: any, fn: any) {
-  if (!bytes.length || bytes.length > MAX_ENTRY) throw Error('Recurso demasiado grande o vacío');
+  if (!bytes.length || bytes.length > MAX_ENTRY) throw Error('Resource is empty or too large');
   const p = wasm._malloc(bytes.length),
     encoded = new TextEncoder().encode(name + '\0'),
     n = wasm._malloc(encoded.length);
@@ -12,7 +12,7 @@ export function withEntry(wasm: any, bytes: any, name: any, fn: any) {
     wasm.HEAPU8.set(encoded, n);
     let size = bytes.length;
     if (bytes[0] === 0x1b || bytes[0] === 0x1c) size = wasm._decrypt_entry(p, size, n);
-    if (!size) throw Error('No se pudo leer ' + name);
+    if (!size) throw Error('Could not read ' + name);
     return fn(p, size);
   } finally {
     wasm._free(p);
@@ -31,11 +31,11 @@ export async function hallwayResources(file: any, kind: any = 'hallway') {
 }
 export function scenePlacements(wasm: any, entries: any, kind: any = 'hallway'): any[] {
   const name = [...entries.keys()].find((n: any) => n.endsWith('/pt14_' + kind + '.fox2'));
-  if (!name) throw Error('La escena hallway FOX2 no está disponible');
+  if (!name) throw Error('The hallway FOX2 scene is unavailable');
   const count = withEntry(wasm, entries.get(name)(), name, (p: any, n: any) =>
     wasm._scene_load(p, n),
   );
-  if (!count) throw Error('No se pudo interpretar la escena FOX2');
+  if (!count) throw Error('Could not parse the FOX2 scene');
   return Array.from({ length: count }, (_: any, i: any) => ({
     modelIndex: i,
     nazo: wasm.UTF8ToString(wasm._scene_model_nazo(i)),
@@ -58,12 +58,12 @@ export async function loadHallway(
     checkpoint,
   }: { scripts?: boolean; kind?: string; checkpoint?: Checkpoint } = {},
 ) {
-  progress('Leyendo escena y colisiones originales…');
+  progress('Reading original scene and collision geometry…');
   const entries = await hallwayResources(file, kind),
     all = scenePlacements(wasm, entries, kind),
     placements = all.filter((p: any) => /\/shsb_(hous001|bath001|pssg001)\.fmdl$/.test(p.model));
   if (kind === 'hallway' && placements.length !== 3)
-    throw Error('Faltan las tres piezas arquitectónicas del pasillo');
+    throw Error('The three hallway architecture pieces are missing');
   // Closed original entry/exit doors bound this isolated hallway; no loop transitions yet.
   placements.push(...all.filter((p: any) => p.mirror));
   placements.push(...all.filter((p: any) => /\/shsb_hous001_door001\.fmdl$/.test(p.model)));
@@ -72,17 +72,18 @@ export async function loadHallway(
       if (name.endsWith('.lua'))
         withEntry(wasm, read(), name, (p: any, n: any) =>
           withString(wasm, name, (path: any) => {
-            if (!wasm._script_load(path, p, n))
-              throw Error('Script original incompatible: ' + name);
+            if (!wasm._script_load(path, p, n)) throw Error('Unsupported original script: ' + name);
           }),
         );
     if (checkpoint) {
       validateCheckpoint(checkpoint);
       withString(wasm, checkpoint.floor, (p: number) => {
-        if (!wasm._script_set_floor(p)) throw Error('No se pudo restaurar la vuelta guardada');
+        if (!wasm._script_set_floor(p)) throw Error('Could not restore the saved loop');
       });
       if (!wasm._scene_photo_restore(checkpoint.photoWord))
-        throw Error('No se pudo restaurar el puzle');
+        throw Error('Could not restore the puzzle');
+      if (checkpoint.xmarkWord !== undefined && !wasm._scene_xmark_restore(checkpoint.xmarkWord))
+        throw Error('Could not restore the portrait');
     }
     // The browser checkpoint begins after f000's entrance. Run the original entrance setup.
     if (kind === 'hallway')
@@ -93,7 +94,7 @@ export async function loadHallway(
         ...(checkpoint ? ['pt14_hallway|pt14_hallway_demo|common_demo|condition_0001'] : []),
       ])
         withString(wasm, name, (p: any) => {
-          if (wasm._script_exec_condition(p) !== 1) throw Error('No se pudo preparar ' + name);
+          if (wasm._script_exec_condition(p) !== 1) throw Error('Could not prepare ' + name);
         });
   }
   if (scripts || kind === 'start') {
@@ -123,12 +124,12 @@ export async function loadHallway(
   wasm._world_clear();
   for (const placement of placements) {
     const { model, geom, matrix: m } = placement;
-    progress('Preparando ' + model.split('/').pop());
-    if (!entries.has(model)) throw Error('Falta el modelo: ' + model);
-    if (geom && !entries.has(geom)) throw Error('Falta la colisión: ' + model);
+    progress('Preparing ' + model.split('/').pop());
+    if (!entries.has(model)) throw Error('Missing model: ' + model);
+    if (geom && !entries.has(geom)) throw Error('Missing collision geometry: ' + model);
     withEntry(wasm, entries.get(model)(), model, (p: any, n: any) => {
       try {
-        if (wasm._decode_fmdl(p, n)) throw Error('Modelo incompatible: ' + model);
+        if (wasm._decode_fmdl(p, n)) throw Error('Unsupported model: ' + model);
         placement.rawPositions = wasm.HEAPF32.slice(
           wasm._raw_position_ptr() / 4,
           wasm._raw_position_ptr() / 4 + wasm._raw_position_count() * 3,
@@ -199,7 +200,7 @@ export async function loadHallway(
       wasm._free(np);
     }
     placement.owner = owner;
-    if (!wasm._world_owner_select(owner)) throw Error('Propietario de colisión inválido');
+    if (!wasm._world_owner_select(owner)) throw Error('Invalid collision owner');
     const mp = wasm._malloc(64);
     try {
       wasm.HEAPF32.set(m, mp / 4);
@@ -211,12 +212,12 @@ export async function loadHallway(
         wasm.HEAPF32.set(placement.rawPositions, rp / 4);
         withEntry(wasm, entries.get(geom)(), geom, (p: any, n: any) => {
           if (wasm._world_surface_geom(p, n, mp, rp, placement.rawPositions.length / 3) < 0)
-            throw Error('Superficies acústicas inválidas');
+            throw Error('Invalid acoustic surfaces');
         });
       } finally {
         wasm._free(rp);
       }
-      if (count < 0) throw Error('Colisión incompatible: ' + geom);
+      if (count < 0) throw Error('Unsupported collision geometry: ' + geom);
       if (count === 0)
         delete placement.owner; // Original decorative GEOM files can contain only acoustic surfaces.
       else if (scripts)
@@ -255,22 +256,22 @@ export async function loadHallway(
         z = m[14] - (kind === 'start' ? 0 : m[10]),
         floor = wasm._world_floor(x, m[13] + 0.5, z);
       if (floor < m[13] - 1 || floor > m[13] + 0.5)
-        throw Error('No hay suelo bajo la entrada original');
+        throw Error('No floor below the original spawn point');
       spawn = { position: [x, floor + 0.05, z], yaw: Math.atan2(-m[8], m[10]) };
       break;
     }
-  if (!spawn) throw Error('Falta el punto de entrada original');
+  if (!spawn) throw Error('Missing original spawn point');
   const probes = [],
     files = new Map();
   for (let i = 0; i < wasm._probe_count(); i++) {
     const name = wasm.UTF8ToString(wasm._probe_name(i));
     if (!scripts && !name.includes('_light_ID10|')) continue;
     const ptr = wasm._probe_data(i);
-    if (!ptr) throw Error('Volumen de sonda inválido: ' + name);
+    if (!ptr) throw Error('Invalid probe volume: ' + name);
     const meta = wasm.HEAPF32.slice(ptr / 4, ptr / 4 + 24),
       path = wasm.UTF8ToString(wasm._probe_path(i));
     if (!files.has(path)) {
-      if (!entries.has(path)) throw Error('Falta iluminación original: ' + path);
+      if (!entries.has(path)) throw Error('Missing original lighting: ' + path);
       files.set(
         path,
         withEntry(wasm, entries.get(path)(), path, (p: any, n: any) =>
@@ -279,17 +280,16 @@ export async function loadHallway(
       );
     }
     const sh = meta[23] ? new Float32Array(36) : files.get(path).get(name.split('|').at(-1));
-    if (!sh) throw Error('Faltan coeficientes de sonda: ' + name);
+    if (!sh) throw Error('Missing probe coefficients: ' + name);
     const data = new Float32Array(60);
     data.set(meta.subarray(0, 16));
     data.set([...meta.slice(16, 19), 1], 16);
     data.set(meta.slice(19, 22), 20);
     data.set(sh, 24);
-    if (!data.every(Number.isFinite)) throw Error('Sonda no finita');
+    if (!data.every(Number.isFinite)) throw Error('Non-finite probe');
     probes.push({ name, nativeIndex: i, priority: meta[22], dark: !!meta[23], data });
   }
-  if (!probes.length || (!scripts && probes.length > 256))
-    throw Error('Cantidad de sondas incompatible');
+  if (!probes.length || (!scripts && probes.length > 256)) throw Error('Unsupported probe count');
   probes.sort((a: any, b: any) => b.priority - a.priority);
   const nativeLighting = scripts ? createNativeLighting(wasm, probes) : undefined;
   return {
@@ -328,7 +328,7 @@ export function withString(wasm: any, value: any, fn: any) {
 }
 
 export async function prepareLocomotion(w: any, file: any, progress: any = () => {}) {
-  progress('Preparando animaciones y rig originales del jugador…');
+  progress('Preparing original player animations and rig…');
   const a = await new Psarc(file).open(),
     resources = new Map();
   for (const name of ['player2_common_motion', 'plparts_normal']) {
@@ -348,7 +348,7 @@ export async function prepareLocomotion(w: any, file: any, progress: any = () =>
     '/Assets/sh/chara/plr/Scenes/plr0_main0_def.fmdl',
     '/Assets/sh/motion/mtar/player/ShPlayer_layers.mtar',
   ];
-  for (const p of paths) if (!resources.has(p)) throw Error('Falta animación original: ' + p);
+  for (const p of paths) if (!resources.has(p)) throw Error('Missing original animation: ' + p);
   const [rig, model, motion] = paths;
   const ok = withEntry(w, resources.get(rig), rig, (r: any, rn: any) =>
     withEntry(w, resources.get(model), model, (s: any, sn: any) =>
@@ -357,7 +357,7 @@ export async function prepareLocomotion(w: any, file: any, progress: any = () =>
       ),
     ),
   );
-  if (!ok) throw Error('Rig o animaciones originales del jugador incompatibles');
+  if (!ok) throw Error('Unsupported original player rig or animations');
   let pose = new Float32Array(12);
   pose[5] = 1.6;
   const handoff = new CameraHandoff();
@@ -387,7 +387,7 @@ export async function prepareLocomotion(w: any, file: any, progress: any = () =>
     step(x: any, z: any, yaw: any, dt: any) {
       const p = w._locomotion_step(x, z, Math.atan2(Math.sin(yaw), -Math.cos(yaw)), dt) / 4;
       pose = w.HEAPF32.slice(p, p + 12);
-      if (!pose.every(Number.isFinite)) throw Error('Pose del jugador no finita');
+      if (!pose.every(Number.isFinite)) throw Error('Non-finite player pose');
       handoff.advance(dt, Math.min(1, Math.hypot(x, z)));
       return pose;
     },
@@ -447,7 +447,7 @@ export function createPointerCapture({
       canvas.focus();
       try {
         if (typeof canvas.requestPointerLock !== 'function')
-          throw new Error('Pointer Lock no disponible');
+          throw new Error('Pointer Lock unavailable');
         const result = canvas.requestPointerLock();
         // Older browsers report success/failure exclusively through document events.
         result?.catch((error: any) => {

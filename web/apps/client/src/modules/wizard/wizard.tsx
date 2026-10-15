@@ -18,14 +18,14 @@ export function WizardView({
         by denyncrawford and LoreanXavier
       </p>
       <h1 className="my-4 text-[clamp(32px,6vw,52px)] font-light tracking-[0.05em]">
-        {loading ? state.title : state.error ? 'No se pudo iniciar' : 'P.T.'}
+        {loading ? state.title : state.error ? 'Could not start' : 'P.T.'}
       </h1>
       {!loading && (
         <>
-          <p>Selecciona tu copia para comenzar.</p>
+          <p>Select your copy to get started.</p>
           <div className="my-[26px] flex flex-wrap justify-center gap-3">
             <label className="relative inline-block cursor-pointer rounded-xs border border-[#555] bg-transparent px-5 py-[13px] text-[#eee] hover:bg-[#333] hover:outline focus-within:outline focus-within:outline-[#eee]">
-              Seleccionar PKG
+              Select PKG
               <input
                 className="sr-only"
                 type="file"
@@ -42,7 +42,7 @@ export function WizardView({
                 className="rounded-xs border border-[#555] bg-transparent px-5 py-[13px] text-[#eee] hover:bg-[#333] focus-visible:outline"
                 onClick={() => void start()}
               >
-                Jugar
+                Play
               </button>
             )}
           </div>
@@ -57,7 +57,7 @@ export function WizardView({
         <>
           <progress
             className="my-5 h-1 w-full accent-[#ddd]"
-            aria-label="Preparando archivos"
+            aria-label="Preparing files"
             max={state.total ?? 1}
             value={state.total ? state.done : undefined}
           />

@@ -23,12 +23,12 @@ export function SettingsView({
     <div className="grid grid-cols-1 gap-6 min-[651px]:grid-cols-2 min-[651px]:gap-x-[60px] min-[651px]:gap-y-[30px]">
       <div>
         <fieldset>
-          <legend>Pantalla</legend>
+          <legend>Display</legend>
           <label className="my-2.5 flex items-center justify-between gap-4 text-sm">
-            Modo de pantalla <button onClick={actions.fullscreen}>Pantalla completa</button>
+            Display mode <button onClick={actions.fullscreen}>Fullscreen</button>
           </label>
           <label className="my-2.5 flex items-center justify-between gap-4 text-sm">
-            Resolución de render{' '}
+            Render resolution{' '}
             <select
               value={options.renderScale}
               onChange={(e) => update('renderScale', Number(e.currentTarget.value))}
@@ -40,17 +40,17 @@ export function SettingsView({
           </label>
         </fieldset>
         <fieldset id="menu-graphics">
-          <legend>Gráficos</legend>
+          <legend>Graphics</legend>
           <GraphicsControls />
         </fieldset>
       </div>
       <div>
         <fieldset>
-          <legend>Sonido</legend>
+          <legend>Sound</legend>
           <label className="my-2.5 flex items-center justify-between gap-4 text-sm">
-            Volumen{' '}
+            Volume{' '}
             <input
-              aria-label="Volumen"
+              aria-label="Volume"
               type="range"
               min="0"
               max="100"
@@ -60,11 +60,11 @@ export function SettingsView({
           </label>
         </fieldset>
         <fieldset>
-          <legend>Controles</legend>
+          <legend>Controls</legend>
           <label className="my-2.5 flex items-center justify-between gap-4 text-sm">
-            Sensibilidad del ratón{' '}
+            Mouse sensitivity{' '}
             <input
-              aria-label="Sensibilidad del ratón"
+              aria-label="Mouse sensitivity"
               type="range"
               min="0.2"
               max="3"
@@ -74,13 +74,13 @@ export function SettingsView({
             />
           </label>
           <p className="text-[13px] text-[#888]">
-            WASD: movimiento · botón derecho: zoom · Esc: pausa
+            WASD: move · right mouse button: zoom · Esc: pause
           </p>
         </fieldset>
         <fieldset>
-          <legend>Partida</legend>
-          <button onClick={actions.restart}>Reiniciar partida</button>
-          <button onClick={actions.capture}>Ocultar menú para captura</button>
+          <legend>Game</legend>
+          <button onClick={actions.restart}>Restart game</button>
+          <button onClick={actions.capture}>Hide menu for screenshot</button>
         </fieldset>
       </div>
     </div>

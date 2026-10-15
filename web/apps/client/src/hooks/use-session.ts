@@ -67,17 +67,17 @@ export function useSession(loadEngine: RuntimeLoader) {
         if (e.lengthComputable)
           setWizard({
             kind: 'loading',
-            title: 'Cargando tu copia',
+            title: 'Loading your copy',
             done: e.loaded,
             total: e.total,
           });
       };
-      xhr.upload.onload = () => setWizard({ kind: 'loading', title: 'Preparando tu copia' });
-      xhr.onerror = () => reject(new Error('Se perdió la conexión. Vuelve a intentarlo.'));
+      xhr.upload.onload = () => setWizard({ kind: 'loading', title: 'Preparing your copy' });
+      xhr.onerror = () => reject(new Error('The connection was lost. Please try again.'));
       xhr.onload = () =>
         xhr.status >= 200 && xhr.status < 300
           ? resolve()
-          : reject(new Error('No se pudo preparar esta copia. Vuelve a intentarlo.'));
+          : reject(new Error('Could not prepare this copy. Please try again.'));
       xhr.send(file);
     });
   }
@@ -103,10 +103,10 @@ export function useSession(loadEngine: RuntimeLoader) {
     try {
       const checkpoint = saveStore().read() ?? undefined;
       if (file) {
-        setWizard({ kind: 'loading', title: 'Cargando tu copia' });
+        setWizard({ kind: 'loading', title: 'Loading your copy' });
         await upload(file);
       }
-      setWizard({ kind: 'loading', title: 'Cargando partida', done: 0, total: 7 });
+      setWizard({ kind: 'loading', title: 'Loading game', done: 0, total: 7 });
       const game = await loadRuntime();
       const archive = await remoteArchive(location.href),
         textures = await remoteArchive(location.href, 'texture.qar');
@@ -114,7 +114,7 @@ export function useSession(loadEngine: RuntimeLoader) {
         archive,
         textures,
         (done: number, total: number) =>
-          setWizard({ kind: 'loading', title: 'Cargando partida', done, total }),
+          setWizard({ kind: 'loading', title: 'Loading game', done, total }),
         checkpoint
           ? checkpoint.floor === 'f000'
             ? 'start'
@@ -125,9 +125,9 @@ export function useSession(loadEngine: RuntimeLoader) {
         checkpoint,
         saveProgress,
       );
-      if (!loaded) throw new Error('No se pudo iniciar la partida. Vuelve a intentarlo.');
+      if (!loaded) throw new Error('Could not start the game. Please try again.');
       native.current?.destroy();
-      if (!nativeCanvas.current) throw new Error('No se pudo preparar el menú');
+      if (!nativeCanvas.current) throw new Error('Could not prepare the menu');
       native.current = await game.createOriginalMenu(
         nativeCanvas.current,
         archive,
@@ -228,7 +228,7 @@ export function useSession(loadEngine: RuntimeLoader) {
           setWizard({
             kind: 'choose',
             ready: false,
-            error: 'No se pudo conectar. Recarga la página.',
+            error: 'Could not connect. Reload the page.',
           });
       });
     return () => {
@@ -236,7 +236,7 @@ export function useSession(loadEngine: RuntimeLoader) {
     };
   }, []);
   useEffect(() => {
-    document.title = playing ? 'P.T. · Web' : 'P.T. · Configuración';
+    document.title = playing ? 'P.T. · Web' : 'P.T. · Setup';
   }, [playing]);
   useEffect(() => {
     if (page === 'native') native.current?.open(nativeOptions());
@@ -247,7 +247,7 @@ export function useSession(loadEngine: RuntimeLoader) {
     const failed = () => {
       openMenu();
       control('menu-error').textContent =
-        'Este navegador no pudo capturar el ratón. Abre esta dirección en Chrome o Edge.';
+        'This browser could not capture the mouse. Open this address in Chrome or Edge.';
     };
     const key = (e: KeyboardEvent) => {
       if (e.code === 'Escape' && page === 'closed' && !confirm && playing) {
@@ -270,7 +270,7 @@ export function useSession(loadEngine: RuntimeLoader) {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await viewer.current?.requestFullscreen();
     } catch (e) {
-      control('menu-error').textContent = 'Pantalla completa no disponible: ' + errorMessage(e);
+      control('menu-error').textContent = 'Fullscreen unavailable: ' + errorMessage(e);
     }
   }
   return {

@@ -50,11 +50,11 @@ export async function createLibrary(root: string) {
   }
   async function importPkg(request: Request) {
     if (request.headers.get('content-type') !== 'application/octet-stream')
-      return error('Tipo de archivo no válido.', 415);
+      return error('Invalid file type.', 415);
     const length = Number(request.headers.get('content-length'));
     if (!Number.isSafeInteger(length) || length < 4096 || length > maxPackage)
-      return error('Tamaño de PKG no válido (máximo 8 GiB).', 413);
-    if (busy) return error('Ya hay una importación en curso.', 409);
+      return error('Invalid PKG size (maximum 8 GiB).', 413);
+    if (busy) return error('An import is already in progress.', 409);
     busy = true;
     const id = randomUUID(),
       upload = join(root, 'upload-' + id + '.pkg'),
@@ -63,23 +63,23 @@ export async function createLibrary(root: string) {
     let committed = false;
     try {
       state = 'uploading';
-      message = 'Recibiendo el PKG…';
+      message = 'Receiving the PKG…';
       let received = 0;
       const counter = new Transform({
         transform(chunk, encoding, cb) {
           received += chunk.length;
-          cb(received > length ? new Error('Tamaño recibido incorrecto.') : null, chunk);
+          cb(received > length ? new Error('Received size does not match.') : null, chunk);
         },
       });
-      if (!request.body) throw new Error('Solicitud vacía.');
+      if (!request.body) throw new Error('Empty request.');
       await pipeline(
         Readable.from(readBody(request.body)),
         counter,
         createWriteStream(upload, { flags: 'wx', mode: 0o600 }),
       );
-      if (received !== length) throw new Error('Transferencia incompleta.');
+      if (received !== length) throw new Error('Incomplete transfer.');
       state = 'extracting';
-      message = 'Extrayendo y verificando los archivos…';
+      message = 'Extracting and verifying files…';
       const helper = await prepareExtractor();
       child = Bun.spawn([helper, upload, destination], {
         env: { ...process.env, DOTNET_BUNDLE_EXTRACT_BASE_DIR: join(runtime, 'bundle') },
@@ -91,13 +91,18 @@ export async function createLibrary(root: string) {
       const code = await child.exited,
         detail = await stderr;
       child = null;
-      if (code !== 0) throw new Error(detail.trim().slice(-2000) || 'No se pudo extraer el PKG.');
+      if (code !== 0) {
+        console.error('PKG extraction failed:', detail.trim().slice(-2000));
+        throw new Error(
+          'Could not extract the PKG. Check that it is a complete, compatible fPKG and try again.',
+        );
+      }
       await writeFile(pointer, JSON.stringify({ id }), { flag: 'wx', mode: 0o600 });
       await rename(pointer, join(root, 'library.json'));
       committed = true;
       active = id;
       state = 'ready';
-      message = 'Importación completada.';
+      message = 'Import complete.';
       return reply({ state });
     } catch (e) {
       state = active ? 'ready' : 'empty';

@@ -9,12 +9,12 @@ import { createLibrary, maxPackage } from './services/library';
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
   console.log(
-    'PT.BunHost [--data <directorio>] [--no-browser]\nServidor Bun + extractor auxiliar incluido. Vista de geometría; juego completo pendiente.',
+    'PT.BunHost [--data <directory>] [--no-browser]\nBun server with extraction helper. Web port in development; full gameplay is not yet available.',
   );
   process.exit(0);
 }
 const dataIndex = args.indexOf('--data');
-if (dataIndex >= 0 && !args[dataIndex + 1]) throw new Error('Falta el directorio para --data');
+if (dataIndex >= 0 && !args[dataIndex + 1]) throw new Error('Missing directory for --data');
 const root = resolve(
   dataIndex >= 0
     ? args[dataIndex + 1]
@@ -31,7 +31,7 @@ try {
   try {
     const existing = (await readFile(join(root, 'session-url.txt'), 'utf8')).trim();
     if (!/^http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}\/$/.test(existing))
-      throw new Error('URL inválida');
+      throw new Error('Invalid URL');
     const response = await fetch(existing + 'api/status', { signal: AbortSignal.timeout(1500) });
     const status: unknown = await response.json();
     if (
@@ -41,14 +41,14 @@ try {
       !('backend' in status) ||
       status.backend !== 'bun'
     )
-      throw new Error('Servidor inactivo');
-    console.log('Ya está abierto: ' + existing);
+      throw new Error('Server is not running');
+    console.log('Already running: ' + existing);
     if (!args.includes('--no-browser'))
       await Bun.spawn(['open', existing], { stdout: 'ignore', stderr: 'ignore' }).exited;
     process.exit(0);
   } catch {
     console.error(
-      'La biblioteca está en uso o quedó un bloqueo tras un cierre inesperado: ' + lockPath,
+      'The library is in use, or a lock remains after an unexpected shutdown: ' + lockPath,
     );
     process.exit(1);
   }
@@ -76,16 +76,16 @@ const server: Bun.Server<undefined> = Bun.serve({
   fetch: app.fetch,
   error(e) {
     console.error(e.message);
-    return error('Error del servidor.', 500);
+    return error('Server error.', 500);
   },
 });
 const url = server.url.origin + prefix;
 await writeFile(join(root, 'session-url.txt'), url, { mode: 0o600 });
 console.log('PT_WEB_URL=' + url);
-console.log('Servidor Bun ' + Bun.version + ' · Biblioteca: ' + root + '\nCtrl+C para detener.');
+console.log('Bun server ' + Bun.version + ' · Library: ' + root + '\nCtrl+C to stop.');
 if (!args.includes('--no-browser')) {
   const opener = Bun.spawn(['open', url], { stdout: 'ignore', stderr: 'pipe' });
-  if ((await opener.exited) !== 0) console.error('Abre la URL anterior en tu navegador.');
+  if ((await opener.exited) !== 0) console.error('Open the URL above in your browser.');
 }
 let stopping = false;
 async function stop() {

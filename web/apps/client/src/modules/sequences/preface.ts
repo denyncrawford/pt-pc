@@ -84,18 +84,18 @@ interface Event {
 export function readPrefaceCaptions(bytes: Uint8Array): Map<number, Caption[]> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const table = new Map<number, Caption[]>();
-  if (bytes.length < 4) throw Error('Tabla de apertura incompleta');
+  if (bytes.length < 4) throw Error('Incomplete opening table');
   const count = view.getUint16(2, true);
-  if (4 + count * 8 > bytes.length) throw Error('Índice de apertura incompleto');
+  if (4 + count * 8 > bytes.length) throw Error('Incomplete opening index');
   const utf8 = new TextDecoder('utf-8', { fatal: true });
   for (let i = 0; i < count; i++) {
     const key = view.getUint32(4 + i * 8, true),
       offset = view.getUint32(8 + i * 8, true);
-    if (offset + 12 > bytes.length) throw Error('Mensaje de apertura incompleto');
+    if (offset + 12 > bytes.length) throw Error('Incomplete opening message');
     const lines = bytes[offset + 2]!,
       length = view.getUint16(offset + 4, true);
     const start = offset + 12 + lines * 4;
-    if (start + length > bytes.length) throw Error('Texto de apertura incompleto');
+    if (start + length > bytes.length) throw Error('Incomplete opening text');
     const raw = bytes.subarray(start, start + length);
     let text: string;
     try {
@@ -119,7 +119,7 @@ export function readPrefaceCaptions(bytes: Uint8Array): Map<number, Caption[]> {
 export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, language = 'Eng') {
   const resources = await loadDemoResources(w, file);
   const meta = resources.metadata.get('gc_p02_500');
-  if (!meta) throw Error('Falta la secuencia de apertura');
+  if (!meta) throw Error('Missing opening sequence');
   const graph: Graph = parseNativeUi(
     w,
     resources.read(meta.fileParams.opui),
@@ -139,7 +139,7 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
   }
   const read = <T>(path: string, kind: number): T => {
     const bytes = entries.get(path);
-    if (!bytes) throw Error('Falta recurso de apertura: ' + path);
+    if (!bytes) throw Error('Missing opening resource: ' + path);
     return parseNativeUi(w, bytes, path, kind) as T;
   };
   const layouts = graph.layouts.map((path) => ({
@@ -170,7 +170,7 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
           );
     }
     for (const animation of layout.data.animations) {
-      if (animation.shader) throw Error('Shader de apertura no soportado: ' + animation.shader);
+      if (animation.shader) throw Error('Unsupported opening shader: ' + animation.shader);
       animations.set(animation.name, read<Animation>(animation.main, 1));
     }
   }
@@ -179,7 +179,7 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
   const lang = archive.names.has(subtitlePath(language)) ? language : 'Eng';
   const pkg = parseFpk(await archive.read(subtitlePath(lang)));
   const subp = pkg.entries.find((entry: { name: string }) => entry.name.endsWith('.subp'));
-  if (!subp) throw Error('Faltan textos de apertura');
+  if (!subp) throw Error('Missing opening text');
   const captions = readPrefaceCaptions(fpkEntry(pkg, subp.name));
   const clock = new SequenceClock(),
     player = new SequencePlayer(w, resources.read(meta.demoStreamPath), 'gc_p02_500', clock);
@@ -191,7 +191,7 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
           l.data.animations.some((a) => a.name === action.animation),
         );
         const data = animations.get(action.animation);
-        if (!layout || !data) throw Error('Animación de apertura desconocida');
+        if (!layout || !data) throw Error('Unknown opening animation');
         const authored = layout.data.animations.find((a) => a.name === action.animation)!;
         layout.animation = {
           data,
@@ -205,7 +205,7 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
         // event names the model stem instead of the UILB stem; its UIA owns opacity.
         if (!layout) continue;
         if (action.target !== '203000540209048' && action.target !== layout.name)
-          throw Error('Visibilidad de apertura desconocida');
+          throw Error('Unknown opening visibility');
         layout.visible = action.visible;
       }
     }
@@ -223,16 +223,16 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
             w._sequence_event_string(event.index, 0xe5b44417),
           ).toString();
           const entry = graph.events.find((e) => e.name === name);
-          if (!entry) throw Error('Evento de apertura desconocido');
+          if (!entry) throw Error('Unknown opening event');
           actions(entry.actions, event.frame);
         } else if (event.functor === 0x348d6764cd38n) actions(graph.start, event.frame);
         else if (event.functor === 0x4d4d2a467cb6n) {
           const key = Number(BigInt.asUintN(32, w._sequence_event_string(event.index, 0xb03cd7c0)));
           const lines = captions.get(key);
-          if (!lines) throw Error('Mensaje de apertura ausente');
+          if (!lines) throw Error('Missing opening message');
           caption = { frame: event.frame, lines };
         } else if (![0n, 0x50543fb8c17an].includes(event.functor))
-          throw Error('Evento de apertura pendiente: ' + event.functor.toString(16));
+          throw Error('Opening event not yet implemented: ' + event.functor.toString(16));
       });
       const pictures: PrefaceFrame['pictures'] = [];
       for (const layout of layouts) {
@@ -245,7 +245,7 @@ export async function loadPreface(w: Decoder, file: Blob, textureFile: Blob, lan
           for (const node of data.nodes)
             for (const track of node.tracks)
               if (track.unit === 0x6318d107) colors.set(node.hash, sampleTrack(track, frame));
-              else throw Error('Canal de apertura pendiente: ' + track.unit.toString(16));
+              else throw Error('Opening channel not yet implemented: ' + track.unit.toString(16));
         }
         for (const path of layout.data.models) {
           const model = models.get(path)!;

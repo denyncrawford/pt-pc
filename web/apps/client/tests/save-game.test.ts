@@ -48,7 +48,7 @@ test('damaged primary recovers previous valid slot; invalid saves are never repl
   storage.data.set('pt-web-progress', 'broken');
   assert.equal(store.read()?.floor, 'f030');
   storage.data.set('pt-web-progress-backup', 'broken');
-  assert.throws(() => store.read(), /No se pudo leer/);
+  assert.throws(() => store.read(), /Could not read/);
   assert.throws(() => store.write({ floor: 'f000', photoWord: 1 }));
   assert.equal(storage.getItem('pt-web-progress'), 'broken');
 });
@@ -57,7 +57,7 @@ test('failed write retains checkpoint; invalid puzzle words cannot be persisted'
     store = new SaveGameStore(storage);
   store.write({ floor: 'f030', photoWord: 4 });
   storage.fail = true;
-  assert.throws(() => store.write({ floor: 'f040', photoWord: 12 }), /No se pudo guardar/);
+  assert.throws(() => store.write({ floor: 'f040', photoWord: 12 }), /Could not save/);
   assert.equal(store.read()?.floor, 'f030');
   storage.fail = false;
   for (const word of [-1, 512, NaN, 1.5])

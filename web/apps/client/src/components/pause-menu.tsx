@@ -39,13 +39,13 @@ export function PauseMenu({ session: s }: { session: Session }) {
         tabIndex={-1}
         className={web ? 'mb-[5vh] text-[clamp(22px,2vw,32px)] font-normal' : 'sr-only'}
       >
-        {web ? 'CONFIGURACIÓN WEB' : 'OPCIONES'}
+        {web ? 'WEB SETTINGS' : 'OPTIONS'}
       </h2>
       <canvas
         ref={s.nativeCanvas}
         hidden={web}
         tabIndex={0}
-        aria-label="Opciones originales: clic para seleccionar; flechas para brillo; Z para ampliar la imagen"
+        aria-label="Original options: click to select; arrow keys to adjust brightness; Z to zoom in on the image"
         className="absolute inset-0 size-full outline-none"
       />
       <section
@@ -63,11 +63,11 @@ export function PauseMenu({ session: s }: { session: Session }) {
       />
       <div className={web ? 'mt-5 flex flex-wrap gap-[5vw]' : 'sr-only'}>
         {web ? (
-          <button onClick={() => s.setPage('native')}>‹ Regresar</button>
+          <button onClick={() => s.setPage('native')}>‹ Back</button>
         ) : (
           <>
-            <button onClick={() => void s.resume()}>Regresar al juego</button>
-            <button onClick={() => void s.library()}>Salir a biblioteca</button>
+            <button onClick={() => void s.resume()}>Return to game</button>
+            <button onClick={() => void s.library()}>Exit to library</button>
           </>
         )}
       </div>
@@ -89,11 +89,11 @@ export function RestartConfirmation({ session: s }: { session: Session }) {
       onCancel={() => s.setConfirm(false)}
       className="m-auto max-w-[96vw] border border-[#333] bg-[#050606] p-6 text-[#eee] backdrop:bg-black/70"
     >
-      <h2 className="mb-5 text-2xl font-normal">¿REINICIAR LA PARTIDA?</h2>
-      <p>Se perderá el avance de esta sesión. Se conservan tu biblioteca y tus opciones.</p>
+      <h2 className="mb-5 text-2xl font-normal">RESTART GAME?</h2>
+      <p>Your saved progress will be reset. Your library and settings will be kept.</p>
       <div className="mt-5 flex gap-3">
-        <button onClick={() => s.setConfirm(false)}>Cancelar</button>
-        <button onClick={() => void s.restart()}>Reiniciar</button>
+        <button onClick={() => s.setConfirm(false)}>Cancel</button>
+        <button onClick={() => void s.restart()}>Restart</button>
       </div>
     </dialog>
   );

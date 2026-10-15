@@ -32,10 +32,13 @@ struct BrowserTrapRequest {const pt::game::TrapCondition* condition;const pt::ga
 static std::vector<BrowserTrapRequest> requests;
 static std::unordered_map<const pt::fox2::Entity*, bool> trap_hits;
 static std::unordered_map<const pt::fox2::Entity*, bool> trap_done;
+static std::unordered_map<const pt::fox2::Entity*, bool> trap_view_seen;
 static uint32_t geom_owner=0,owner_count=1;
 static std::unordered_map<const pt::fox2::Entity*,bool> model_visible;
 
  #include "script_bridge.h"
+static uint32_t xmark_word=1;
+static bool action_held=false,action_pressed=false;
 static uint32_t photo_word=1;
 static bool photo_active=false;
 static uint32_t photo_armed=0;
@@ -55,7 +58,7 @@ EMSCRIPTEN_KEEPALIVE uint64_t texture_pathcode(const char* path) {return pt::Pat
 EMSCRIPTEN_KEEPALIVE int scene_load(const uint8_t* data, int size) {
  auto file=std::make_shared<pt::fox2::DataSetFile>();
  if(size<=0 || !file->Load("hallway", {data,size_t(size)})) return 0;
- photo_word=1;photo_active=false;photo_armed=0;photo_hold=0;zoom_held=false;zoom_pressed=false;stage=pt::game::BuildStageData(file,"hallway"); ResetScriptHost(); requests.clear();trap_hits.clear();trap_done.clear();model_visible.clear(); probes.clear();for(const auto& e:file->Entities())if(e.class_name=="ShLightProbe")probes.push_back(&e); return stage->static_models.size();
+ xmark_word=1;action_held=action_pressed=false;photo_word=1;photo_active=false;photo_armed=0;photo_hold=0;zoom_held=false;zoom_pressed=false;stage=pt::game::BuildStageData(file,"hallway"); ResetScriptHost(); requests.clear();trap_hits.clear();trap_done.clear();trap_view_seen.clear();model_visible.clear(); probes.clear();for(const auto& e:file->Entities())if(e.class_name=="ShLightProbe")probes.push_back(&e); return stage->static_models.size();
 }
 EMSCRIPTEN_KEEPALIVE const char* scene_model_name(int i){return stage->static_models.at(i).name.c_str();}
 EMSCRIPTEN_KEEPALIVE void scene_model_visibility(int i,int visible){model_visible[stage->static_models.at(i).entity]=visible!=0;}
@@ -74,6 +77,25 @@ static int photo_apply(){if(!stage)return 0;int changed=0;const auto& f=*stage->
   if(target->class_name=="StaticModel"){model_visible[target]=on;script_commands.push_back({"GeomActive",{f.EntityName(*target),on?"1":"0"}});}else if(target->class_name=="FxLocatorData")return -1;else body_enabled[target]=on;++changed;
  }return changed;
 }
+// Native NazoManager XMark visual states; resources remain in the user's archive.
+static void xmark_apply(){if(!stage)return;const auto& f=*stage->file;
+ for(const auto& e:f.Entities())if(e.class_name=="NazoManageData")for(const auto& [key,target]:f.GetEntityMap(e,"controlAsset")){
+  if(!target)continue;int on=-1;
+  if(key=="XMarkInit")on=xmark_word==1;
+  else if(key=="XMark")on=xmark_word==4;
+  else if(key=="XMarkPic1"||key=="XMarkText"||key=="XMarkText1"||key=="XMarkPicEf")on=xmark_word==8;
+  // FloorLevel::RelocateGimmicks prepares Hello in f070/f080 (word 2).
+  if(key=="HELL_Ican")on=script_floor=="f070"||script_floor=="f080";
+  else if(key=="L1"||key=="E"||key=="H"||key=="L2"||key=="O"||key=="Exclamation"||key=="HELL_L1"||key=="HELL_E"||key=="HELL_H"||key=="HELL_L2")on=0;
+  if(on<0)continue;
+  if(target->class_name=="StaticModel"){model_visible[target]=on;script_commands.push_back({"GeomActive",{f.EntityName(*target),on?"1":"0"}});}
+  else if(target->class_name=="FxLocatorData")model_visible[target]=on;
+  else body_enabled[target]=on;
+ }
+}
+EMSCRIPTEN_KEEPALIVE int scene_xmark_word(){return xmark_word;}
+EMSCRIPTEN_KEEPALIVE int scene_xmark_restore(int word){if(word!=1&&word!=4&&word!=8)return 0;xmark_word=word;xmark_apply();return 1;}
+EMSCRIPTEN_KEEPALIVE void events_action(int held){action_pressed=held&&!action_held;action_held=held!=0;}
 EMSCRIPTEN_KEEPALIVE int scene_photo_prepare(){if(!(photo_word&2))photo_word=2;return photo_apply();}
 EMSCRIPTEN_KEEPALIVE int scene_photo_word(){return photo_word;}
 EMSCRIPTEN_KEEPALIVE int scene_photo_restore(uint32_t word){
@@ -170,7 +192,7 @@ EMSCRIPTEN_KEEPALIVE const char* scene_audit_json(){
 EMSCRIPTEN_KEEPALIVE int scene_is_mirror(int i){const auto model=stage->static_models.at(i).entity;for(const auto& e:stage->file->Entities())if(e.class_name=="Mirror"&&stage->file->GetEntity(e,"staticModelHandle")==model)return 1;return 0;}
 // Requests stay pending until a host really executes their callback. Detection is
 // deliberately not completion: absent Lua/demo/audio hosts must never advance a loop.
-EMSCRIPTEN_KEEPALIVE void events_reset(){requests.clear();trap_hits.clear();trap_done.clear();}
+EMSCRIPTEN_KEEPALIVE void events_reset(){requests.clear();trap_hits.clear();trap_done.clear();trap_view_seen.clear();}
 EMSCRIPTEN_KEEPALIVE int events_tick(float x,float y,float z,float body_yaw,float move_x,float move_z){
  requests.clear();if(!stage||!std::isfinite(x+y+z+body_yaw+move_x+move_z))return -1;
  const auto& f=*stage->file;std::vector<BrowserTrapRequest> out,enter,inside;
@@ -182,6 +204,16 @@ EMSCRIPTEN_KEEPALIVE int events_tick(float x,float y,float z,float body_yaw,floa
   for(const auto& c:trap.conditions){bool match=hit&&BodyEnabled(c.entity,c.enable)&&!(c.is_once&&trap_done[c.entity]);
    for(const auto& check:c.checks){if(!match||!check.entity)continue;const auto& e=*check.entity;
     if(check.class_name=="ShTrapCheckIsPlayerCallbackDataElement")continue;
+    if(check.class_name=="ShTrapCheckIsInViewCallbackDataElement"){
+     const auto button=f.GetString(e,"button");
+     const bool now=InView(f.GetEntity(e,"checkLocator"),f.GetFloat(e,"checkAreaSize",0,0.4f))&&(button=="Zoom"?zoom_pressed:button=="Action"?action_pressed:true);
+     if(f.GetBool(e,"isOutOfViewAfter")){
+      const bool seen=trap_view_seen[&e];
+      match=seen&&!now;
+      if(now)trap_view_seen[&e]=true;else if(seen)trap_view_seen[&e]=false;
+     }else match=now;
+     continue;
+    }
     if(check.class_name!="ShTrapCheckPlayerInputDirectionCallbackDataElement"){match=false;continue;}
     auto target=f.GetEntity(e,"targetLink");const auto m=f.WorldTransform(target?*target:*trap.entity);const float yaw=std::atan2(m[2].x,m[2].z),limit=glm::radians(f.GetFloat(e,"degreeLimit",0,45));
     if(f.GetBool(e,"isCheckPlayerDir")&&std::abs(wrap(body_yaw-yaw))>limit)match=false;
@@ -202,6 +234,12 @@ EMSCRIPTEN_KEEPALIVE int events_tick(float x,float y,float z,float body_yaw,floa
       if(flag==4&&photo_active&&!(photo_word&bit)&&!photo_armed&&zoom_pressed&&InView(f.GetEntity(e,"checkLocator"),f.GetFloat(e,"checkAreaSize",0,0.4f))){photo_armed=bit;photo_hold=0;}
      }
      if(photo)continue;
+     if(name=="XMark"||name=="XMarkTerop"){
+      if(flag==4&&script_floor=="f050"&&InView(f.GetEntity(e,"checkLocator"),f.GetFloat(e,"checkAreaSize",0,0.4f))){
+       if(name=="XMark"&&xmark_word==4&&action_pressed){xmark_word=8;xmark_apply();script_commands.push_back({"XMarkClear",{}});}
+       else if(name=="XMarkTerop"&&xmark_word==8&&zoom_pressed)script_commands.push_back({"XMarkCaption",{}});
+      }continue;
+     }
     }
     BrowserTrapRequest request{&c,&cb,flag};(flag==2?out:flag==1?enter:inside).push_back(request);
    }
@@ -251,6 +289,7 @@ EMSCRIPTEN_KEEPALIVE int script_exec_request(int index){
 }
 EMSCRIPTEN_KEEPALIVE int script_exec_condition(const char* name){for(const auto& trap:stage->traps)for(const auto& c:trap.conditions)if(c.name==name)for(const auto& cb:c.execs)if(cb.class_name=="GeoTrapScriptCallbackDataElement"){requests.push_back({&c,&cb,1});const int code=script_exec_request(requests.size()-1);requests.pop_back();return code;}return -1;}
 EMSCRIPTEN_KEEPALIVE int script_demo_message(const char* demo,const char* message){int applied=0;for(const auto& s:stage->message_scripts){if(s.class_name!="ShDemoScript"||!BodyEnabled(s.entity,s.enable)||s.demo_id!=demo||s.message_name!=message)continue;if(s.order_floor&&std::find(s.floor_names.begin(),s.floor_names.end(),script_floor)==s.floor_names.end())continue;auto table=s.script_file.substr(s.script_file.find_last_of('/')+1);table=table.substr(0,table.find_last_of('.'));auto L=script_vm->State();int result;lua_sethook(L,ScriptBudget,LUA_MASKCOUNT,1000000);const bool ok=script_vm->CallTableFunction(table,"OnMessage",4,1,[&](lua_State* L){PushScriptEntity(L,s.entity);PushScriptEntity(L,s.entity,true);lua_pushstring(L,demo);lua_pushstring(L,message);},&result);lua_sethook(L,nullptr,0,0);if(!ok)return -1;lua_settop(L,result-1);applied++;}return applied;}
+EMSCRIPTEN_KEEPALIVE int script_controller_message(const char* message){const char* demo="";int applied=0;for(const auto& s:stage->message_scripts){if(s.class_name!="ShGameControllerMessageScript"||!BodyEnabled(s.entity,s.enable)||s.message_name!=message)continue;if(s.order_floor&&std::find(s.floor_names.begin(),s.floor_names.end(),script_floor)==s.floor_names.end())continue;auto table=s.script_file.substr(s.script_file.find_last_of('/')+1);table=table.substr(0,table.find_last_of('.'));auto L=script_vm->State();int result;lua_sethook(L,ScriptBudget,LUA_MASKCOUNT,1000000);const bool ok=script_vm->CallTableFunction(table,"OnMessage",4,1,[&](lua_State* L){PushScriptEntity(L,s.entity);PushScriptEntity(L,s.entity,true);lua_pushstring(L,demo);lua_pushstring(L,message);},&result);lua_sethook(L,nullptr,0,0);if(!ok)return -1;lua_settop(L,result-1);applied++;}return applied;}
 EMSCRIPTEN_KEEPALIVE const char* script_last_error(){return script_error.c_str();}
 EMSCRIPTEN_KEEPALIVE int script_command_count(){return script_commands.size();}
 EMSCRIPTEN_KEEPALIVE const char* script_command_name(int i){return script_commands.at(i).name.c_str();}
@@ -260,7 +299,7 @@ EMSCRIPTEN_KEEPALIVE void script_commands_clear(){script_commands.clear();}
 EMSCRIPTEN_KEEPALIVE const float* event_matrix(int i){static glm::mat4 m;const auto& r=requests.at(i);const auto& f=*stage->file;auto trap=f.GetEntity(*r.condition->entity,"parent");auto center=f.GetBool(*r.callback->entity,"orderDemoCenter")?f.GetEntity(*r.callback->entity,"demoCenterLink"):nullptr;m=f.WorldTransform(center?*center:*trap);return glm::value_ptr(m);}
 EMSCRIPTEN_KEEPALIVE const float* stage_next_matrix(){static glm::mat4 m;const auto& c=stage->connectors;if(!c.contains("startDoor")||!c.contains("endDoor"))return nullptr;m=c.at("endDoor")*glm::rotate(glm::mat4(1),glm::pi<float>(),glm::vec3(0,1,0))*glm::inverse(c.at("startDoor"));return glm::value_ptr(m);}
 EMSCRIPTEN_KEEPALIVE void script_bgm_state(const char* name,int playing){script_bgm[name]=playing!=0;}
-EMSCRIPTEN_KEEPALIVE int script_set_floor(const char* name){if(!name)return 0;for(const auto* floor:pt::game::kFloorNames)if(name==std::string(floor)){script_floor=name;photo_floor(script_floor);return 1;}return 0;}
+EMSCRIPTEN_KEEPALIVE int script_set_floor(const char* name){if(!name)return 0;for(const auto* floor:pt::game::kFloorNames)if(name==std::string(floor)){script_loop_count=script_floor==name?script_loop_count:1;script_floor=name;photo_floor(script_floor);action_held=action_pressed=false;if(script_floor=="f050"&&xmark_word==1)xmark_word=4;xmark_apply();return 1;}return 0;}
 EMSCRIPTEN_KEEPALIVE const char* script_next_floor(){for(size_t i=0;i+1<std::size(pt::game::kFloorNames);i++)if(script_floor==pt::game::kFloorNames[i])return pt::game::kFloorNames[i+1];return "";}
 EMSCRIPTEN_KEEPALIVE void script_apply_geometry(){for(const auto& c:script_commands)if(c.name=="GeomActive")for(uint32_t owner=1;owner<owner_count;owner++)if(world.OwnerName(owner)==c.args[0])world.SetOwnerActive(owner,c.args[1]=="1");}
 EMSCRIPTEN_KEEPALIVE int locator_count() {return stage->locators.size()+stage->game_objects.size();}
@@ -268,6 +307,7 @@ static const pt::game::LocatorPlacement& locator(int i) {return size_t(i)<stage-
 EMSCRIPTEN_KEEPALIVE const char* locator_name(int i) {return locator(i).name.c_str();}
 EMSCRIPTEN_KEEPALIVE const float* locator_matrix(int i) {return glm::value_ptr(locator(i).world);}
 EMSCRIPTEN_KEEPALIVE int lamp_stage_light(){if(!stage)return 0;const auto& f=*stage->file;for(const auto& l:stage->game_objects)if(l.class_name=="ShGimmick"){auto p=f.GetEntity(*l.entity,"parameters");if(p&&f.GetString(*p,"partsType")=="CeilLamp")return BodyEnabled(l.entity,true)?1:0;}return 0;}
+EMSCRIPTEN_KEEPALIVE const float* baby_locator(){if(!stage)return nullptr;const auto& f=*stage->file;for(const auto& l:stage->game_objects)if(l.class_name=="ShGimmick"){auto p=f.GetEntity(*l.entity,"parameters");if(p&&f.GetString(*p,"partsType")=="Baby")return glm::value_ptr(l.world);}return nullptr;}
 EMSCRIPTEN_KEEPALIVE const float* lamp_locator(){if(!stage)return nullptr;const auto& f=*stage->file;for(const auto& l:stage->game_objects)if(l.class_name=="ShGimmick"){auto p=f.GetEntity(*l.entity,"parameters");if(p&&f.GetString(*p,"partsType")=="CeilLamp")return glm::value_ptr(l.world);}return nullptr;}
 EMSCRIPTEN_KEEPALIVE void world_clear() {world.Clear();surfaces.clear();geom_owner=0;owner_count=1;}
 EMSCRIPTEN_KEEPALIVE int world_owner_create(const char* name){const auto id=world.AddOwner(name?name:"");owner_count=id+1;return id;}

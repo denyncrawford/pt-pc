@@ -1,3 +1,4 @@
+import { createDemoEffects } from '../effects/demo-effects';
 import { SequenceClock, SequencePlayer } from './sequence-player';
 import { loadDemoResources } from './demo-resources';
 import { withEntry, withString } from '../gameplay/runtime';
@@ -12,7 +13,11 @@ export async function prepareDemoActors(
   file: any,
   ids: any = ['gc_p05_010', 'gc_p04_310', 'gc_p01_070'],
 ) {
-  const resources = await loadDemoResources(w, file),
+  const visuals = createDemoEffects(w);
+  const resources = await loadDemoResources(w, file).catch((error: unknown) => {
+      visuals.destroy();
+      throw error;
+    }),
     clock = new SequenceClock(),
     players = new Map(),
     actors = [],
@@ -22,7 +27,7 @@ export async function prepareDemoActors(
   try {
     for (const id of ids) {
       const meta = resources.metadata.get(id);
-      if (!meta) throw Error('DemoData ausente: ' + id);
+      if (!meta) throw Error('Missing DemoData: ' + id);
       const player = new SequencePlayer(w, resources.read(meta.demoStreamPath), id, clock);
       players.set(id, player);
       player.models = new Map();
@@ -42,13 +47,43 @@ export async function prepareDemoActors(
           scene.lights.push(light);
         }
       });
-      for (const [name, path] of Object.entries<any>(meta.modelFiles)) {
+      player.use(() => {
+        for (const event of player.events)
+          if (event.functor === 0xba70c25c5ca2n) {
+            const effect = resources.effect(
+              id,
+              BigInt.asUintN(64, w._sequence_event_string(event.index, 0xc5d7e215)),
+            );
+            if (
+              effect.nodes.some(
+                (node: string) => !['FxModuleGraph', 'FxSoundCallProgramEffectNode'].includes(node),
+              )
+            )
+              visuals.prepare(effect.path, resources.read(effect.path));
+          }
+      });
+      for (const [name, declaredPath] of Object.entries<any>(meta.modelFiles)) {
+        const code = resources.code(name);
+        const used = player.use(() =>
+          player.events.some(
+            (event: { type: number; index: number }) =>
+              [0xc5806267, 0x75586ee7, 0x3e09e7b9].includes(Number(event.type)) &&
+              BigInt.asUintN(64, w._sequence_event_arg(event.index, 0)).toString() === code,
+          ),
+        );
+        if (!used && !player.actors.some((actor: { name: string }) => actor.name === name))
+          continue;
+        const playerParts =
+          !declaredPath && name === 'HM_plr0_main0_def'
+            ? await resources.resolvePlayerModel()
+            : null;
+        const path = playerParts?.modelFile || declaredPath;
         const read = resources.entries.get(path) || scene.entries.get(path);
-        if (!read) throw Error('Modelo de secuencia ausente: ' + path);
+        if (!read) throw Error('Missing sequence model: ' + path);
         const skinned = player.actors.some((a: any) => a.kind === 5 && a.name === name);
         const mesh = withEntry(w, read(), path, (p: any, n: any) => {
           try {
-            if (w._decode_fmdl(p, n)) throw Error('FMDL de secuencia inválido: ' + path);
+            if (w._decode_fmdl(p, n)) throw Error('Invalid sequence FMDL: ' + path);
             const count = w._vertex_count(),
               bytes = w.HEAPU8.subarray(p, p + n),
               vertices = w.HEAPF32.slice(w._vertex_ptr() / 4, w._vertex_ptr() / 4 + count * 6),
@@ -60,7 +95,7 @@ export async function prepareDemoActors(
               player.use(() =>
                 withString(w, name, (np: any) => {
                   if (!w._sequence_bind_model(np, p, n))
-                    throw Error(`Esqueleto de actor inválido: ${id}/${name}`);
+                    throw Error(`Invalid actor skeleton: ${id}/${name}`);
                 }),
               );
             }
@@ -88,15 +123,17 @@ export async function prepareDemoActors(
           index: player.actors.find((a: any) => a.name === name && a.kind === (skinned ? 4 : 3))
             ?.index,
         };
-        if (actor.index === undefined) throw Error('Actor sin pista: ' + name);
+        if (actor.index === undefined) throw Error('Actor has no track: ' + name);
         player.models.set(actor.code, actor);
         actors.push(actor);
         meshes.push(mesh);
         scene.groups.push(
-          ...mesh.groups.map((g: any) => ({
+          ...mesh.groups.map((g: any, groupIndex: number) => ({
             ...g,
             first: g.first + ni,
             demoActor: actor,
+            playerMeshChain: playerParts ? mesh.skin?.chains[groupIndex] : undefined,
+            playerMeshHidden: playerParts?.hidden,
             visible: false,
           })),
         );
@@ -130,6 +167,7 @@ export async function prepareDemoActors(
     scene.uvs = uvs;
     scene.indices = indices;
   } catch (e) {
+    visuals.destroy();
     for (const p of players.values()) p.destroy();
     throw e;
   }
@@ -144,6 +182,11 @@ export async function prepareDemoActors(
     dirty: false,
     audio: null,
     message: null,
+    cameraPlayer: null as SequencePlayer | null,
+    handyEnabled: false,
+    cameraFocus: null as number | null,
+    cameraExposure: null as number | null,
+    recordedScreenEvents: new Map<string, Record<string, string | number>>(),
     bindGroups(value: any) {
       groups = value;
     },
@@ -168,6 +211,11 @@ export async function prepareDemoActors(
       if (!p) return false;
       const wasPlaying = p.state === 'playing';
       p.stop();
+      if (this.cameraPlayer === p) {
+        this.cameraPlayer = null;
+        this.cameraFocus = null;
+        this.cameraExposure = null;
+      }
       for (const light of p.lights.values()) light.data[16] = 0;
       p.pendingPlay = false;
       for (const a of p.models.values()) {
@@ -177,6 +225,7 @@ export async function prepareDemoActors(
       for (const g of groups) if (g.demoActor?.player === p) g.visible = false;
       this.dirty = true;
       this.audio?.releaseEffects(id + ':');
+      visuals.release(id + ':');
       if (notify && wasPlaying) this.message?.(id, 'Skip');
       return true;
     },
@@ -190,6 +239,7 @@ export async function prepareDemoActors(
         dt = lastAudioTime === null ? 0 : Math.max(0, now - lastAudioTime);
         lastAudioTime = now;
       }
+      visuals.step(dt);
       clock.advance(dt);
       for (const p of players.values())
         if (p.state === 'playing') {
@@ -202,7 +252,7 @@ export async function prepareDemoActors(
               arg = () => BigInt.asUintN(64, w._sequence_event_arg(e.index, 0)).toString(),
               actor = p.models.get(arg());
             if (type === 0xc5806267) {
-              if (!actor) throw Error(`${p.name}: modelo sin resolver`);
+              if (!actor) throw Error(`${p.name}: unresolved model`);
               actor.created = true;
               actor.visible = true;
             } else if (type === 0x75586ee7) {
@@ -211,8 +261,27 @@ export async function prepareDemoActors(
                 actor.visible = false;
               }
             } else if (type === 0x3e09e7b9) {
-              if (!actor) throw Error(`${p.name}: visibilidad sin modelo`);
+              if (!actor) throw Error(`${p.name}: visibility event has no model`);
               actor.visible = !!w._sequence_event_enabled(e.index);
+            } else if (type === 0x7f4d8e71 || type === 0xf4603510) {
+              p.cameraCreated = type === 0x7f4d8e71;
+            } else if (type === 0x6b491e18) {
+              // Original per-mesh events are evaluated by sequence_player_group.
+              if (!actor || actor.name !== 'HM_plr0_main0_def')
+                throw Error('Mesh change has no handler');
+            } else if (e.functor === 0x9fe662692727n) {
+              this.cameraPlayer = p;
+            } else if (e.functor === 0xbfa41f9e6521n) {
+              // Native mesh switches are sampled below, including the player's arms.
+            } else if (e.functor === 0x7d2cda51f34an) {
+              this.cameraFocus = w._sequence_event_float(e.index, 0x90c1d608);
+            } else if (e.functor === 0xf3f47f2c0016n) {
+              this.cameraExposure = w._sequence_event_float(e.index, 0x354a96ab);
+            } else if (e.functor === 0x36a45bc5da0bn) {
+              this.handyEnabled = true;
+            } else if (e.soundId) {
+              if (!this.audio?.postId) throw Error('Missing pickup audio player');
+              this.audio.postId(e.soundId);
             } else if (w._sequence_light_event(e.index)) {
               // Evaluated with native interpolation below at the shared sequence frame.
             } else if (e.functor === 0xba70c25c5ca2n) {
@@ -220,18 +289,22 @@ export async function prepareDemoActors(
                 p.name,
                 BigInt.asUintN(64, w._sequence_event_string(e.index, 0xc5d7e215)),
               );
-              if (
-                effect.nodes.some(
-                  (n: any) => !['FxModuleGraph', 'FxSoundCallProgramEffectNode'].includes(n),
-                ) ||
-                !effect.sound
-              )
-                throw Error(`${p.name} @${e.frame}: efecto visual obligatorio ${effect.path}`);
               const pos = w._sequence_event_position(e.index) / 4,
                 position = transformPoint(p.origin, w.HEAPF32.slice(pos, pos + 3)),
                 instance = w._sequence_event_string(e.index, 0xef98a387).toString();
-              if (!this.audio) throw Error('Falta audio original para ' + p.name);
-              this.audio.effect(p.name + ':' + instance, effect.sound, position);
+              if (!this.audio) throw Error('Missing original audio for ' + p.name);
+              if (effect.sound) this.audio.effect(p.name + ':' + instance, effect.sound, position);
+              if (visuals.manifests.has(effect.path))
+                visuals.spawn(
+                  p.name + ':' + instance,
+                  effect.path,
+                  p.origin,
+                  w.HEAPF32.slice(pos, pos + 3),
+                );
+            } else if (e.functor === 0x62b47a5b81ecn) {
+              const key = p.name + ':' + w._sequence_event_string(e.index, 0xef98a387).toString();
+              visuals.release(key);
+              this.audio?.releaseEffects(key);
             } else if (e.functor === 0xcee2edd67199n) {
               const code = BigInt.asUintN(
                   64,
@@ -258,7 +331,7 @@ export async function prepareDemoActors(
                   'enable_voice_breath',
                   'GotoGameOver',
                 ].find((n: any) => resources.code(n) === code);
-              if (!name) throw Error(`${p.name}: mensaje desconocido ${code}`);
+              if (!name) throw Error(`${p.name}: unknown message ${code}`);
               if (name === 'FinishMotion' && !p.finishSent) {
                 this.message?.(p.name, name);
                 p.finishSent = true;
@@ -275,10 +348,21 @@ export async function prepareDemoActors(
               ) {
                 this.message?.(p.name, name);
               }
+            } else if (e.functor === 0x22cfa19e5213n) {
+              // DemoSystem::RunFunctor records this unhandled native command.
+              // Its two string parameters have no numeric/vector screen values.
+              this.recordedScreenEvents.set(
+                p.name + ':' + e.index,
+                JSON.parse(w.UTF8ToString(w._sequence_event_diagnostic(e.index))),
+              );
             } else if (e.functor !== 0n)
-              throw Error(`${p.name} @${e.frame}: functor ${e.functor.toString(16)} obligatorio`);
+              throw Error(
+                `${p.name} @${e.frame}: functor ${e.functor.toString(16)} is required but unsupported`,
+              );
             else if (![0xd3185dff, 0x966d8ec3, 0x3148f136, 0x2a36c514, 0xd2a6999a].includes(type))
-              throw Error(`${p.name} @${e.frame}: evento ${type.toString(16)} obligatorio`);
+              throw Error(
+                `${p.name} @${e.frame}: event ${type.toString(16)} is required but unsupported`,
+              );
           });
           p.use(() => {
             const ptr = w._malloc(64);
@@ -306,7 +390,7 @@ export async function prepareDemoActors(
                     const count = withString(w, a.name, (np: any) =>
                       w._sequence_model_skin(np, p.frame, mp),
                     );
-                    if (count <= a.mesh.skin.maxJoint) throw Error('Paleta de actor incompleta');
+                    if (count <= a.mesh.skin.maxJoint) throw Error('Incomplete actor palette');
                     const ptr = w._sequence_model_skin_ptr() / 4;
                     palette = w.HEAPF32.slice(ptr, ptr + count * 16);
                   } finally {
@@ -315,7 +399,7 @@ export async function prepareDemoActors(
                 });
               } else {
                 const sample = p.sample(a.index);
-                if (!sample) throw Error('Pista de actor sin muestra');
+                if (!sample) throw Error('Actor track has no sample');
                 const m = rotation(sample);
                 m.set(sample.subarray(4, 7), 12);
                 palette = multiply(p.origin, m);
@@ -380,15 +464,25 @@ export async function prepareDemoActors(
           }
         }
       for (const g of groups)
-        if (g.demoActor && !g.demoActor.lamp) {
-          const visible = !g.stage && g.demoActor.created && g.demoActor.visible;
+        if (g.demoActor && !g.demoActor.lamp && !g.demoActor.gimmick) {
+          let visible = !g.stage && g.demoActor.created && g.demoActor.visible;
+          if (visible && g.playerMeshChain) {
+            const player = g.demoActor.player;
+            visible = player.use(() =>
+              g.playerMeshChain.every((name: string) =>
+                withString(w, name, (ptr: number) => !!w._sequence_player_group(player.frame, ptr)),
+              ),
+            );
+          }
           if (g.visible !== visible) {
             g.visible = visible;
             this.dirty = true;
           }
         }
     },
+    visuals,
     destroy() {
+      visuals.destroy();
       for (const p of players.values()) {
         this.audio?.releaseEffects(p.name + ':');
         p.destroy();

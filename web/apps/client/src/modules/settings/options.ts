@@ -17,7 +17,7 @@ export const defaultOptions: GameOptions = {
   invertY: false,
   brightness: 1,
   subtitles: true,
-  language: 'Spa',
+  language: 'Eng',
   volume: 1,
   renderScale: 1,
 };

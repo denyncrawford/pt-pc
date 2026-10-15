@@ -13,7 +13,9 @@ const fast = [
   'subliminal',
   'zoom',
   'camera-blend',
+  'spot-shadow',
   'save-game',
+  'xmark',
 ];
 const suites = {
   fast,
@@ -27,6 +29,7 @@ const suites = {
     'third-loop',
     'save-resume',
     'f060',
+    'f070',
   ],
 } satisfies Record<string, string[]>;
 type Suite = keyof typeof suites;
@@ -90,7 +93,7 @@ Uso: bun web/apps/client/scripts/test-gameplay.ts [--suite full|route|fast] [--c
   --check Valida biblioteca, WASM y selección sin ejecutar pruebas.
 Recursos: PT_TEST_PSARC y PT_TEST_QAR; si se omiten, usa la biblioteca local activa.
 Requisitos: bun install; bun run build:wasm. No necesita servidor ni navegador.
-No verifica píxeles GPU, audio audible ni el baño completo de f060 o vueltas posteriores.`);
+No verifica píxeles GPU, audio audible ni vueltas posteriores a la entrada de f050. La cadena f060 usa puntos de recorrido, no colisión continua.`);
     return 0;
   }
   let suite: Suite = 'full';

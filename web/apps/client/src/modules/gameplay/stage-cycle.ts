@@ -27,8 +27,8 @@ export class StageCycle {
   }
   async prepare(destination: string, loader: (destination: string) => Promise<StageResource>) {
     if (this.phase === 'blocked') throw this.error;
-    if (this.phase === 'disposed') throw Error('Ciclo de etapas descargado');
-    if (this.pending) throw Error('Ya hay una etapa en preparación');
+    if (this.phase === 'disposed') throw Error('Stage cycle has been disposed');
+    if (this.pending) throw Error('A stage is already being prepared');
     const token = ++this.generation;
     this.phase = 'preparing';
     this.error = null;
@@ -42,7 +42,7 @@ export class StageCycle {
         return false;
       }
       if (!resource || resource.floor !== destination)
-        throw Error('La etapa preparada no coincide con el destino');
+        throw Error('The prepared stage does not match the destination');
       this.phase = 'ready';
       return true;
     } catch (error) {
@@ -57,7 +57,7 @@ export class StageCycle {
   }
   transfer(validate: (previous: StageResource, next: StageResource) => void) {
     if (this.phase !== 'ready' || !this.pending?.resource)
-      throw Error('El destino no está preparado');
+      throw Error('The destination is not ready');
     const next = this.pending.resource,
       previous = this.current;
     // Validation must not mutate either stage. It may check floor, connector and events.

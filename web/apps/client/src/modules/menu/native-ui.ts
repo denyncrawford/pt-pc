@@ -23,7 +23,7 @@ export async function loadNativeUi(w: any, file: any, textureFile: any) {
       for (const [p, b] of parsePftxs(await archive.read(name))) packed.set(p, b);
   const find = (s: any) => {
     const path = [...entries.keys()].find((p: any) => p.endsWith(s));
-    if (!path) throw Error('Falta recurso del menú: ' + s);
+    if (!path) throw Error('Missing menu resource: ' + s);
     return path;
   };
   const read = (s: any, k: any) => {
@@ -37,7 +37,7 @@ export async function loadNativeUi(w: any, file: any, textureFile: any) {
     for (const path of [a.main, a.shader])
       if (path && !animations.has(path)) {
         const bytes = entries.get(path);
-        if (!bytes) throw Error('Falta animación: ' + path);
+        if (!bytes) throw Error('Missing animation: ' + path);
         animations.set(path, parseNativeUi(w, bytes, path, 1));
       }
   const languages: Record<string, any> = {};
@@ -248,8 +248,8 @@ export class NativeMenu {
     const base = resources.model.nodes.find((n: any) => n.id === 115),
       root = resources.model.nodes.findIndex((n: any) => n.id === 1);
     for (const [id, label, pos, size] of [
-      [10000, 'Configuración web', [32, -26], 20],
-      [10001, 'Salir', [-12, -26], 20],
+      [10000, 'Web settings', [32, -26], 20],
+      [10001, 'Exit', [-12, -26], 20],
       [10002, 'by denyncrawford and LoreanXavier', [22, -34], 12],
     ] as [number, string, number[], number][])
       resources.model.nodes.push({
@@ -522,7 +522,7 @@ export class NativeMenu {
   setOptions(options: any) {
     const old = this.options;
     this.options = options;
-    const lang = options.language?.toLowerCase() || 'spa';
+    const lang = options.language?.toLowerCase() || 'eng';
     this.language = languageCodes.includes(lang) ? lang : 'eng';
     this.players.play('UI_sys_option_bgrh_scle', false, (options.brightnessIndex ?? 7) / 10);
     if (old.invertY !== options.invertY)
@@ -716,18 +716,14 @@ export class NativeMenu {
           );
         }
       } else if (textKeys[n.id] || n.label) {
-        const text =
-          n.label ||
-          r.languages[this.language][textKeys[n.id]] ||
-          r.languages.eng[textKeys[n.id]] ||
-          '';
-        fontKey = this.language === 'jpn' ? 'font_def_jp' : 'font_def_ltn';
+        const text = n.label || r.languages.eng[textKeys[n.id]] || '';
+        // Interface language is English; subtitle selection remains independent.
+        fontKey = 'font_def_ltn';
         const font = this.fonts[fontKey],
           scale = Math.sqrt(Math.abs(world.m[0] * world.m[3] - world.m[1] * world.m[2]));
         const style =
-          r.styles?.find(
-            (s: any) => s.hash === n.fontHash && s.language.toLowerCase() === this.language,
-          ) || r.styles?.find((s: any) => s.hash === n.fontHash);
+          r.styles?.find((s: any) => s.hash === n.fontHash && s.language.toLowerCase() === 'eng') ||
+          r.styles?.find((s: any) => s.hash === n.fontHash);
         const fw = (style?.fontWidth || 20) * scale * fit,
           fh = (style?.fontHeight || 20) * scale * fit,
           space = (style?.textSpace || 0) * scale * fit;
@@ -930,7 +926,7 @@ export async function decodeMenuSounds(w: any, file: any) {
     for (const name of ['Play_sys_cursor_01', 'Play_sys_change_01']) {
       w._audio_stop();
       const playing = str(name, (p: any) => w._audio_post(p, 0, 0, 0, 0));
-      if (!playing) throw Error('Falta sonido original: ' + name);
+      if (!playing) throw Error('Missing original sound: ' + name);
       const samples = [];
       let frames = 0;
       do {
@@ -938,7 +934,7 @@ export async function decodeMenuSounds(w: any, file: any) {
         samples.push(w.HEAPF32.slice(p / 4, p / 4 + 2048));
         frames += 1024;
       } while (w._audio_effect_alive(playing) && frames < 48000 * 5);
-      if (w._audio_effect_alive(playing)) throw Error('Sonido de menú sin final: ' + name);
+      if (w._audio_effect_alive(playing)) throw Error('Menu sound did not finish: ' + name);
       const pcm = new Float32Array(frames * 2);
       samples.forEach((s: any, i: any) => pcm.set(s, i * 2048));
       sounds.set(name, pcm);

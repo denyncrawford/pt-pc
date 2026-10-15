@@ -37,31 +37,31 @@ export async function prepareLamp(w: any, scene: any, file: any, audio: any) {
   w._lamp_clear();
   try {
     withEntry(w, resources.read(mtar), mtar, (p: any, n: any) => {
-      if (!w._lamp_archive(p, n)) throw Error('Animaciones originales de lámpara inválidas');
+      if (!w._lamp_archive(p, n)) throw Error('Invalid original lamp animations');
     });
     withEntry(w, resources.read(model), model, (p: any, n: any) => {
-      if (!w._lamp_model(p, n)) throw Error('Esqueleto original de lámpara inválido');
+      if (!w._lamp_model(p, n)) throw Error('Invalid original lamp skeleton');
     });
     for (const key of ['CeilLamp', 'CeilLampStrong']) {
       const path = paths.get(key);
-      if (!path) throw Error('Falta movimiento original ' + key);
+      if (!path) throw Error('Missing original motion ' + key);
       const clip = withEntry(w, resources.read(mtar), mtar, (p: any, n: any) =>
         withString(w, path, (k: any) => {
           const value = w._gimmick_audio_json(p, n, k);
-          if (!value) throw Error('Movimiento inválido ' + key);
+          if (!value) throw Error('Invalid motion ' + key);
           return JSON.parse(w.UTF8ToString(value));
         }),
       );
       if (!withString(w, path, (p: any) => w._lamp_motion(p)))
-        throw Error('Rig de lámpara no soportado ' + key);
+        throw Error('Unsupported lamp rig ' + key);
       clip.path = path;
       clip.events = clip.events
         .map((e: any) => {
           if (e.args[0] !== 6 || e.args.length !== 2)
-            throw Error('Evento obligatorio de lámpara no soportado');
-          if (!w._lamp_sample(e.frame)) throw Error('Pose original de lámpara inválida');
+            throw Error('Unsupported required lamp event');
+          if (!w._lamp_sample(e.frame)) throw Error('Invalid original lamp pose');
           const bone = withString(w, e.bone, (p: any) => w._lamp_bone(p));
-          if (!bone) throw Error('Hueso sonoro original de lámpara ausente');
+          if (!bone) throw Error('Missing original lamp sound bone');
           const position = transformPoint(world, w.HEAPF32.slice(bone / 4 + 12, bone / 4 + 15));
           const sends = [];
           for (let i = 0, n = w._acoustic_area(...position); i < n; i++)
@@ -74,11 +74,11 @@ export async function prepareLamp(w: any, scene: any, file: any, audio: any) {
     const parts = '/Assets/sh/parts/chara/lte/lte0_main0_def_v00.parts';
     const effectPath = withEntry(w, resources.read(parts), parts, (p: number, n: number) => {
       const result = w._lamp_effect_parts(p, n);
-      if (!result) throw Error('Conexión original de luz de lámpara inválida');
+      if (!result) throw Error('Invalid original lamp light connection');
       return w.UTF8ToString(result) as string;
     });
     withEntry(w, resources.read(effectPath), effectPath, (p: number, n: number) => {
-      if (!w._lamp_effect_load(p, n)) throw Error('Efecto original de luz de lámpara inválido');
+      if (!w._lamp_effect_load(p, n)) throw Error('Invalid original lamp light effect');
     });
     const flare = '/Assets/sh/effect/vfx_data/lensflare/fx_sh_lfrlgt01.vfxlf';
     withEntry(w, resources.read(flare), flare, (p: number, n: number) =>
@@ -90,7 +90,7 @@ export async function prepareLamp(w: any, scene: any, file: any, audio: any) {
     const lightIndex = scene.baseLightingCounts?.lights ?? scene.lights.length;
     scene.lights.splice(lightIndex, 0, light);
     if (scene.baseLightingCounts) scene.baseLightingCounts.lights++;
-    const visual = appendLamp(w, scene, resources.read(model), model, world);
+    const visual = appendGimmickMesh(w, scene, resources.read(model), model, world);
     const setEnabled = visual.setEnabled;
     let lightEnabled = true;
     visual.setEnabled = (enabled: boolean) => {
@@ -103,14 +103,14 @@ export async function prepareLamp(w: any, scene: any, file: any, audio: any) {
       audio,
       (clip: any, frame: any, dt = 0) => {
         withString(w, clip.path, (p: any) => w._lamp_motion(p));
-        if (!w._lamp_sample(frame)) throw Error('No se pudo evaluar lámpara');
+        if (!w._lamp_sample(frame)) throw Error('Could not evaluate the lamp');
         setEnabled(lightEnabled);
         visual.sample();
         const ptr = w._malloc(64);
         try {
           w.HEAPF32.set(world, ptr / 4);
           const value = w._lamp_effect_sample(ptr, Math.min(dt, 0.25));
-          if (!value) throw Error('No se pudo evaluar la luz original de lámpara');
+          if (!value) throw Error('Could not evaluate the original lamp light');
           light.data.set(w.HEAPF32.subarray(value / 4, value / 4 + 28));
           light.data[16] = Number(lightEnabled && w._lamp_stage_light() === 1);
         } finally {
@@ -175,7 +175,7 @@ export class LampPlayer {
     }
     if (!key) return;
     const clip = this.clips.get(key);
-    if (!clip) throw Error('Movimiento original sin preparar: ' + key);
+    if (!clip) throw Error('Original motion is not ready: ' + key);
     const to = this.frame + dt * clip.fps;
     const cues = [];
     for (const e of clip.events) {
@@ -207,10 +207,18 @@ export class LampPlayer {
 }
 
 // ShGimmick is not a static scene placement: append its native skinned mesh once.
-function appendLamp(w: any, scene: any, bytes: Uint8Array, path: string, world: Float32Array) {
+export function appendGimmickMesh(
+  w: any,
+  scene: any,
+  bytes: Uint8Array,
+  path: string,
+  world: Float32Array,
+  skinHost = w,
+  gimmick = false,
+) {
   const mesh = withEntry(w, bytes, path, (p: any, n: any) => {
     try {
-      if (w._decode_fmdl(p, n)) throw Error('Modelo de lámpara inválido');
+      if (w._decode_fmdl(p, n)) throw Error('Invalid lamp model');
       const count = w._vertex_count();
       return {
         vertices: w.HEAPF32.slice(w._vertex_ptr() / 4, w._vertex_ptr() / 4 + count * 6),
@@ -243,7 +251,7 @@ function appendLamp(w: any, scene: any, bytes: Uint8Array, path: string, world: 
     indexFirst,
   );
   scene.indices = indices;
-  const actor = { lamp: true };
+  const actor = { lamp: !gimmick, gimmick };
   let renderedGroups = scene.groups;
   const groups = mesh.groups.map((g: any, i: number) => ({
     ...g,
@@ -278,9 +286,9 @@ function appendLamp(w: any, scene: any, bytes: Uint8Array, path: string, world: 
               g.lampVariant === (w._lamp_stage_light() ? 'MESH_on_ST' : 'MESH_off'));
     },
     sample() {
-      if (w._lamp_bone_count() <= mesh.skin.maxJoint) throw Error('Paleta de lámpara incompleta');
-      const ptr = w._lamp_skin() / 4;
-      const palette = w.HEAPF32.slice(ptr, ptr + w._lamp_bone_count() * 16);
+      if (skinHost._lamp_bone_count() <= mesh.skin.maxJoint) throw Error('Incomplete lamp palette');
+      const ptr = skinHost._lamp_skin() / 4;
+      const palette = w.HEAPF32.slice(ptr, ptr + skinHost._lamp_bone_count() * 16);
       for (let i = 0; i < palette.length; i += 16)
         palette.set(multiply(world, palette.subarray(i, i + 16)), i);
       for (let i = 0; i < mesh.count; i++) {

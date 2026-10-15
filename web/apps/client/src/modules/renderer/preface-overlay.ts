@@ -6,7 +6,7 @@ export function createPrefaceOverlay(preface: Preface) {
   for (const [path, texture] of preface.textures) {
     const image = new OffscreenCanvas(texture.width, texture.height);
     const context = image.getContext('2d');
-    if (!context) throw Error('No se pudo preparar la apertura');
+    if (!context) throw Error('Could not prepare the opening');
     context.putImageData(
       new ImageData(new Uint8ClampedArray(texture.rgba), texture.width, texture.height),
       0,
@@ -24,13 +24,13 @@ export function createPrefaceOverlay(preface: Preface) {
       canvas.height = 720;
     }
     const context = canvas.getContext('2d');
-    if (!context) throw Error('No se pudo mostrar la apertura');
+    if (!context) throw Error('Could not display the opening');
     context.globalAlpha = 1;
     context.fillStyle = 'black';
     context.fillRect(0, 0, 1280, 720);
     for (const picture of frame.pictures) {
       const image = images.get(picture.texture);
-      if (!image) throw Error('Imagen de apertura ausente');
+      if (!image) throw Error('Missing opening image');
       context.globalAlpha = Math.max(0, Math.min(1, picture.opacity));
       context.drawImage(image, picture.x, picture.y, picture.width, picture.height);
     }

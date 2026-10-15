@@ -15,7 +15,7 @@ export function exposureFor(ev: any, s: any) {
 }
 export function buildColorLut(t: any, s: any) {
   if (t.width !== 16 || t.height !== 16 || t.depth !== 16 || t.format !== 0)
-    throw Error('LUT original incompatible');
+    throw Error('Unsupported original LUT');
   const decode = (x: any) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
   const out = new Uint8Array(256 * 16 * 4);
   for (let g = 0; g < 16; g++)
@@ -49,15 +49,15 @@ export async function preparePost(w: any, file: any, qar: any) {
     parameter = [...archive.names.keys()].find((n: any) =>
       n.toLowerCase().endsWith('/shparametertables.lua'),
     );
-  if (!parameter) throw Error('Falta ShParameterTables.lua para exposición original');
+  if (!parameter) throw Error('Missing ShParameterTables.lua for original exposure');
   const resident = parseFpk(await archive.read('as/sh/level/common/resident.fpkd'));
   for (const e of resident.entries)
     if (e.name.endsWith('.fox2'))
       withEntry(w, fpkEntry(resident, e.name), e.name, (p: any, n: any) => {
-        if (!w._post_import(p, n, 0)) throw Error('Configuración residente inválida');
+        if (!w._post_import(p, n, 0)) throw Error('Invalid resident configuration');
       });
   withEntry(w, unwrap(await archive.read(parameter)), parameter, (p: any, n: any) => {
-    if (!w._post_import(p, n, 1)) throw Error('Parámetros de iluminación inválidos');
+    if (!w._post_import(p, n, 1)) throw Error('Invalid lighting parameters');
   });
   const floors: Record<string, any> = {};
   for (const floor of [
@@ -78,7 +78,7 @@ export async function preparePost(w: any, file: any, qar: any) {
     'f160',
   ]) {
     const s = withString(w, floor, (p: any) => JSON.parse(w.UTF8ToString(w._post_settings(p))));
-    if (!s.luts?.common_saturation_a) throw Error('Falta LUT common_saturation_a');
+    if (!s.luts?.common_saturation_a) throw Error('Missing common_saturation_a LUT');
     floors[floor] = s;
   }
   const s = floors.f010,
@@ -192,7 +192,8 @@ export async function createPost(device: any, format: any, resources: any) {
   const subliminal = resources.subliminal
     ? createSubliminal(device, format, resources.subliminal)
     : undefined;
-  const usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+  const usage =
+    GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
   const tex = (w: any, h: any, format: any = 'rgba16float') => {
     const t = device.createTexture({ size: [w, h], format, usage });
     targets.push(t);
@@ -306,6 +307,7 @@ export async function createPost(device: any, format: any, resources: any) {
     let destroyed = false;
     return {
       brightness: 1,
+      cinematicExposure: null as number | null,
       triggerPhoto: (bit: number) => subliminal?.trigger(bit),
       resize(w: any, h: any) {
         if (width === w && height === h) return;
@@ -335,6 +337,9 @@ export async function createPost(device: any, format: any, resources: any) {
           size: groups[0] * groups[1] * 8,
           usage: GPUBufferUsage.STORAGE,
         });
+      },
+      get hdrTexture() {
+        return hdr;
       },
       get hdr() {
         return hdr.createView();
@@ -382,7 +387,7 @@ export async function createPost(device: any, format: any, resources: any) {
           new Float32Array([
             s.min,
             s.max,
-            s.compensation,
+            this.cinematicExposure ?? s.compensation,
             s.key,
             ...s.add,
             this.brightness,

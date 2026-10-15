@@ -10,10 +10,10 @@ export async function remoteArchive(
 ): Promise<RangeArchive> {
   const url = new URL('assets/' + name, base);
   const r = await fetch(url, { method: 'HEAD' });
-  if (!r.ok) throw new Error('No hay un PSARC disponible.');
+  if (!r.ok) throw new Error('No PSARC is available.');
   const size = Number(r.headers.get('Content-Length')),
     etag = r.headers.get('ETag');
-  if (!Number.isSafeInteger(size) || size <= 0) throw new Error('Tamaño del archivo inválido.');
+  if (!Number.isSafeInteger(size) || size <= 0) throw new Error('Invalid file size.');
   const cache = new Map<number, Uint8Array<ArrayBuffer>>(),
     blockSize = 4 * 1024 * 1024;
   async function block(index: number): Promise<Uint8Array<ArrayBuffer>> {
@@ -29,13 +29,11 @@ export async function remoteArchive(
       headers: { Range: `bytes=${start}-${end - 1}`, ...(etag ? { 'If-Match': etag } : {}) },
     });
     if (result.status !== 206)
-      throw new Error(
-        'No se pudo leer el rango (' + result.status + '). Vuelve a abrir la biblioteca.',
-      );
+      throw new Error('Could not read the range (' + result.status + '). Reopen the library.');
     if (result.headers.get('Content-Range') !== `bytes ${start}-${end - 1}/${size}`)
-      throw new Error('Respuesta de rango inválida.');
+      throw new Error('Invalid range response.');
     const bytes = new Uint8Array(await result.arrayBuffer());
-    if (bytes.length !== end - start) throw new Error('Lectura incompleta.');
+    if (bytes.length !== end - start) throw new Error('Incomplete read.');
     cache.set(index, bytes);
     if (cache.size > 8) cache.delete(cache.keys().next().value!);
     return bytes;
@@ -53,7 +51,7 @@ export async function remoteArchive(
           end > size ||
           end - start > 128 * 1024 * 1024
         )
-          throw new Error('Rango inválido.');
+          throw new Error('Invalid range.');
         const out = new Uint8Array(end - start);
         let position = start;
         while (position < end) {

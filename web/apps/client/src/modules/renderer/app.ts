@@ -1,3 +1,4 @@
+import { createDemoEffectsRenderer } from '../effects/demo-effects-renderer';
 import { loadPreface, shouldPlayPreface } from '../sequences/preface';
 import { createPrefaceOverlay } from './preface-overlay';
 import type { Checkpoint } from '../gameplay/save-game';
@@ -41,6 +42,7 @@ import {
 } from '../gameplay/runtime';
 import createGeometry from './geometry.js';
 import { discoverModels, MAX_ENTRY } from '../../lib/archives';
+let demoEffectsRenderer: Awaited<ReturnType<typeof createDemoEffectsRenderer>> | undefined;
 let checkpointListener: ((checkpoint: Checkpoint) => void) | undefined;
 const canvas = $('canvas');
 const status = (message: any) => {
@@ -297,7 +299,7 @@ function projectionView() {
   return multiply(p, v);
 }
 function createMesh(vertices: any, indices: any, name: any, surface: any = null) {
-  if (!indices.length || vertices.length % 6) throw new Error('Geometría vacía o inválida');
+  if (!indices.length || vertices.length % 6) throw new Error('Empty or invalid geometry');
   const vb = device.createBuffer({
     size: vertices.byteLength,
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -333,6 +335,8 @@ function createMesh(vertices: any, indices: any, name: any, surface: any = null)
 }
 function upload(vertices: any, indices: any, name: any, surface: any = null) {
   const replacement = createMesh(vertices, indices, name, surface);
+  demoEffectsRenderer?.destroy();
+  demoEffectsRenderer = undefined;
   post?.destroy();
   post = null;
   sceneLighting?.destroy();
@@ -445,7 +449,7 @@ function demo() {
   upload(
     new Float32Array(vertices),
     new Uint32Array(indices),
-    'Pasillo sintético · no es el mapa de P.T.',
+    'Synthetic hallway · not the P.T. map',
   );
   camera = [0, 1.6, 3];
   yaw = 0;
@@ -478,14 +482,14 @@ async function loadModel(index: any) {
         } finally {
           wasm._free(np);
         }
-        if (!size) throw new Error('No se pudo descifrar la entrada FPK');
+        if (!size) throw new Error('Could not decrypt the FPK entry');
       }
       const result = wasm._decode_fmdl(ptr, size);
       if (result)
         throw new Error(
-          'FMDL no compatible o inválido (código ' +
+          'Unsupported or invalid FMDL (code ' +
             result +
-            '). Este visor admite geometría estática, posiciones float32/float16 y normales.',
+            '). This viewer supports static geometry, float32/float16 positions and normals.',
         );
       const vertices = wasm.HEAPF32.slice(
         wasm._vertex_ptr() / 4,
@@ -496,7 +500,7 @@ async function loadModel(index: any) {
         wasm._index_ptr() / 4 + wasm._index_count(),
       );
       walking = false;
-      upload(vertices, indices, model.name + ' · geometría sin materiales originales');
+      upload(vertices, indices, model.name + ' · geometry without original materials');
       return true;
     } finally {
       wasm._free(ptr);
@@ -504,7 +508,7 @@ async function loadModel(index: any) {
     }
   } catch (e) {
     fail(e);
-    status('No se pudo cargar el modelo. La escena anterior sigue disponible.');
+    status('Could not load the model. The previous scene is still available.');
     return false;
   } finally {
     busy = false;
@@ -544,7 +548,13 @@ function frame(time: any) {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
   }
-  if (walking && !firstLoop?.completed && firstLoop?.phase !== 'sequence') {
+  if (
+    walking &&
+    !firstLoop?.completed &&
+    firstLoop?.phase !== 'sequence' &&
+    !firstLoop?.cameraControlled &&
+    !firstLoop?.movementLocked
+  ) {
     const active = controlsActive() && !document.hidden && (!gameAudio || gameAudio.active);
     let z = active ? Number(keys.has('KeyW')) - Number(keys.has('KeyS')) : 0;
     let x = active ? Number(keys.has('KeyD')) - Number(keys.has('KeyA')) : 0;
@@ -584,6 +594,7 @@ function frame(time: any) {
               yaw,
               [Math.sin(yaw) * z + Math.cos(yaw) * x, -Math.cos(yaw) * z + Math.sin(yaw) * x],
               active && keys.has('Zoom'),
+              active && ['KeyE', 'KeyX', 'Enter', 'Space', 'Action'].some((key) => keys.has(key)),
             );
           } catch (e) {
             walking = false;
@@ -637,6 +648,14 @@ function frame(time: any) {
           fail(e);
         });
       }
+      if (view?.released) {
+        playerFeet = [...view.position];
+        cameraBasis = null;
+        playerZoom.reset();
+        locomotion?.reset(view.yaw);
+        locomotion?.handCameraBack(camera, playerFeet);
+        keys.clear();
+      }
       if (view?.transferred) {
         playerZoom.reset();
         cameraBasis = null;
@@ -650,18 +669,18 @@ function frame(time: any) {
         if (firstLoop.completed) pauseWalk();
         status(
           view.opening
-            ? 'Habitación inicial · acércate a la puerta para salir al pasillo'
+            ? 'Starting room · approach the door to enter the hallway'
             : firstLoop.completed
-              ? 'Recorrido verificado hasta la entrada de f060. Las etapas posteriores siguen en implementación.'
+              ? 'Playable route ends at f070. Later stages are still in development.'
               : firstLoop.floor === 'f030'
-                ? 'Etapa f030 · mira por la abertura del baño usando zoom para activar su evento original.'
+                ? 'Stage f030 · zoom in through the bathroom door gap to trigger the original event.'
                 : firstLoop.floor === 'f040'
-                  ? 'Etapa f040 · eventos, luces y salida originales activos.'
+                  ? 'Stage f040 · original events, lights and exit are active.'
                   : firstLoop.floor === 'f060'
-                    ? 'Etapa f060 · entrada y apertura del baño disponibles; recogida de la linterna pendiente.'
-                    : 'Etapa ' +
+                    ? 'Stage f060 · flashlight, baby, mirror and bathroom exit events are active.'
+                    : 'Stage ' +
                       firstLoop.floor +
-                      '. Retrocede tras encontrar las cucarachas para activar el evento del baño antes de volver a la salida. Reloj y audio originales activos.',
+                      '. Original event triggers, clock and audio are active.',
         );
       }
     } catch (e) {
@@ -671,6 +690,7 @@ function frame(time: any) {
   $('opening-fade').style.opacity = firstLoop?.opening ? firstLoop.fade : 0;
   if (gameAudio) {
     acoustics?.lamp?.update(firstLoop?.floor, menuPaused || document.hidden);
+    firstLoop?.updateHandyLight?.(camera, forward());
     if (sceneLighting?.updateDynamic()) refreshShadows = true;
     const lampVisual = acoustics?.lamp?.visual;
     if (lampVisual?.dirty && mesh) {
@@ -700,49 +720,49 @@ function frame(time: any) {
     if (sub) sub.textContent = preferences.subtitles ? gameAudio.clock.text(gameAudio.time) : '';
     const audioStatus = $('audio-status');
     if (audioStatus)
-      audioStatus.textContent = gameAudio.active ? 'Audio activo' : 'Audio en pausa · pulsa Jugar';
+      audioStatus.textContent = gameAudio.active ? 'Audio active' : 'Audio paused · press Play';
     const meter = $('audio-meter');
     if (meter)
       meter.textContent =
-        'Audio: ' + gameAudio.time.toFixed(2) + ' s · nivel ' + gameAudio.peak.toFixed(3);
+        'Audio: ' + gameAudio.time.toFixed(2) + ' s · level ' + gameAudio.peak.toFixed(3);
   }
   if ($('walk-debug'))
     $('walk-debug').textContent =
-      'Posición: ' +
+      'Position: ' +
       camera.map((n: any) => n.toFixed(2)).join(', ') +
-      ' · giro ' +
+      ' · yaw ' +
       ((yaw * 180) / Math.PI).toFixed(1) +
       '°' +
-      (firstLoop?.blocking.length ? ' · Para salir falta: ' + firstLoop.blocking.join(', ') : '') +
+      (firstLoop?.blocking.length ? ' · Exit requires: ' + firstLoop.blocking.join(', ') : '') +
       (acoustics
-        ? ' · pasos ' +
+        ? ' · steps ' +
           acoustics.steps +
-          ' · obstrucción ' +
+          ' · obstruction ' +
           acoustics.blocked.toFixed(2) +
-          ' · suelo ' +
+          ' · floor ' +
           (acoustics.material >>> 0).toString(16) +
-          ' · zona ' +
+          ' · zone ' +
           (acoustics.zone.split('|').at(-1) || 'exterior')
         : '') +
       (locomotion
         ? ' · anim ' +
-          ['marcha', 'arranque', 'parada'][locomotion.pose[10]] +
+          ['walk', 'start', 'stop'][locomotion.pose[10]] +
           '/' +
           locomotion.pose[9] +
           ' @' +
           locomotion.pose[8].toFixed(1)
         : '') +
       (playerBody
-        ? ' · jugador ' +
+        ? ' · player ' +
           playerBody.mesh.vertices.length / 6 +
-          ' vértices · ' +
+          ' vertices · ' +
           playerBody.surface.count +
-          ' mapas' +
+          ' maps' +
           (playerBody.surface.tableFallback
-            ? ' · tabla de materiales: fallback nativo; reimporta la biblioteca'
-            : ' · tabla original: 256 × 2') +
+            ? ' · material table: native fallback; reimport the library'
+            : ' · original table: 256 × 2') +
           (playerBody.surface.missing.length
-            ? ' · faltan ' + playerBody.surface.missing.length
+            ? ' · missing ' + playerBody.surface.missing.length
             : '')
         : '');
   const data = new Float32Array(24);
@@ -829,15 +849,36 @@ function frame(time: any) {
     pass.setBindGroup(0, bindGroup);
     pass.setBindGroup(2, sceneLighting.group);
   }
-  if (playerBody && walking && sceneLighting && post) {
+  if (playerBody && walking && sceneLighting && post && !firstLoop?.cameraControlled) {
     pass.setPipeline(texturedPipeline);
     pass.setBindGroup(0, bindGroup);
     pass.setBindGroup(2, sceneLighting.group);
     playerBody.draw(pass);
   }
   pass.end();
+  if (demoEffectsRenderer && post) {
+    const dir = forward(),
+      right = [Math.cos(yaw), 0, Math.sin(yaw)];
+    const up = [-Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch)];
+    demoEffectsRenderer.render(
+      encoder,
+      post.hdrTexture,
+      depth,
+      new Float32Array([
+        ...camera,
+        ...dir,
+        ...up,
+        ...right,
+        ...data.subarray(0, 16),
+        canvas.width / canvas.height,
+        cameraFov,
+        0.05,
+      ]),
+    );
+  }
   if (post) {
     post.brightness = preferences.brightness;
+    post.cinematicExposure = firstLoop?.ambient?.cameraExposure ?? null;
   }
   if (post)
     post.render(
@@ -895,10 +936,10 @@ function frame(time: any) {
 async function init() {
   if (!navigator.gpu)
     throw new Error(
-      'WebGPU no está disponible. Abre esta página en localhost o HTTPS con un navegador y GPU compatibles.',
+      'WebGPU is unavailable. Open this page on localhost or HTTPS with a compatible browser and GPU.',
     );
   const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('No se encontró un adaptador WebGPU');
+  if (!adapter) throw new Error('No WebGPU adapter was found');
   device = trackGpu(
     await adapter.requestDevice({
       requiredFeatures: adapter.features.has('texture-compression-bc')
@@ -908,7 +949,7 @@ async function init() {
   );
   device.addEventListener('uncapturederror', (e: any) => fail(e.error));
   device.lost.then((info: any) =>
-    fail(new Error('Se perdió el dispositivo GPU: ' + info.message + '. Recarga la página.')),
+    fail(new Error('The GPU device was lost: ' + info.message + '. Reload the page.')),
   );
   context = canvas.getContext('webgpu');
   const format = navigator.gpu.getPreferredCanvasFormat();
@@ -1210,7 +1251,7 @@ async function init() {
     camera = [x, floor + 1.6, z];
     keys.clear();
     accumulator = 0;
-    status('Inspección del espejo · Caminar activa la animación. R vuelve a la entrada.');
+    status('Mirror inspection · walking activates the animation. R returns to the entrance.');
   };
   $('models').onchange = () => loadModel(Number($('models').value));
   $('files').onchange = () => loadFiles([...$('files').files]);
@@ -1232,9 +1273,11 @@ async function init() {
   canvas.addEventListener('contextmenu', (e: any) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e: any) => {
     if (e.button === 2 && controlsActive()) keys.add('Zoom');
+    if (e.button === 0 && controlsActive()) keys.add('Action');
   });
   addEventListener('pointerup', (e: any) => {
     if (e.button === 2) keys.delete('Zoom');
+    if (e.button === 0) keys.delete('Action');
   });
   addEventListener('blur', () => keys.clear());
   document.addEventListener('pointerlockchange', () => keys.clear());
@@ -1338,6 +1381,7 @@ async function prepareSession(
     candidate.acoustics?.locators?.destroy();
     candidate.loop?.destroy();
     candidate.body?.destroy();
+    candidate.effectsRenderer?.destroy();
     candidate.post?.destroy();
     candidate.lighting?.destroy();
     candidate.previewUniform?.destroy();
@@ -1425,6 +1469,13 @@ async function prepareSession(
     candidate.body = await createPlayerBody(device, w, file, qar, texturedPipeline, () => {});
     onProgress(6, 7);
     candidate.post = await createPost(device, outputFormat, await preparePost(w, file, qar));
+    if (candidate.loop.ambient?.visuals.manifests.size)
+      candidate.effectsRenderer = await createDemoEffectsRenderer(
+        device,
+        w,
+        candidate.loop.ambient.visuals,
+        qar,
+      );
     candidate.loop.onPhotoCollected = (bit: number) => candidate.post.triggerPhoto(bit);
     onProgress(7, 7);
     if (candidate.audioError) throw candidate.audioError;
@@ -1446,17 +1497,18 @@ function installSession(c: any) {
   sceneLighting = c.lighting;
   playerBody = c.body;
   post = c.post;
+  demoEffectsRenderer = c.effectsRenderer;
   spawn = c.scene.spawn;
   walking = true;
   resetPlayer();
   const names = {
     Eng: 'English',
-    Spa: 'Español',
-    Fre: 'Français',
-    Ger: 'Deutsch',
-    Ita: 'Italiano',
-    Jpn: '日本語',
-    Por: 'Português',
+    Spa: 'Spanish',
+    Fre: 'French',
+    Ger: 'German',
+    Ita: 'Italian',
+    Jpn: 'Japanese',
+    Por: 'Portuguese',
   };
   gameAudio.setVolume(preferences.volume);
   if (firstLoop.opening) {
@@ -1467,11 +1519,15 @@ function installSession(c: any) {
     cameraFov = view.fov;
     cameraBasis = view.basis;
   }
-  checkpointListener?.({ floor: firstLoop.floor, photoWord: wasm._scene_photo_word() });
+  checkpointListener?.({
+    floor: firstLoop.floor,
+    photoWord: wasm._scene_photo_word(),
+    xmarkWord: wasm._scene_xmark_word(),
+  });
   status(
     firstLoop.opening
-      ? 'Habitación inicial · despertar y salida original al pasillo'
-      : 'Pasillo original · f010 → f005 → f020 → f030 → f040 → f060',
+      ? 'Starting room · original wake-up and hallway exit'
+      : 'Original hallway · f010 → f005 → f020 → f030 → f040 → f060 → f050 → f070',
   );
   document.documentElement.dataset.sessionResources = JSON.stringify({
     ...device.resourceSnapshot(),
@@ -1482,7 +1538,7 @@ function installSession(c: any) {
 async function commitOpeningExit(view: any) {
   const c = nextSession;
   if (!c || c.floor !== view.exit.destination || !c.connector)
-    throw Error('El pasillo de destino no está preparado');
+    throw Error('The destination hallway is not ready');
   const handoff = openingHandoff(view, c.connector, (...p: any) => c.wasm._world_floor(...p));
   const { position } = handoff;
   const generation = sessionGeneration,
@@ -1547,7 +1603,7 @@ export async function loadWalk(
       const generation = sessionGeneration,
         host = firstLoop;
       host.prepareDestination = async (floor: any) => {
-        if (floor !== 'f010') throw Error('Destino original no implementado: ' + floor);
+        if (floor !== 'f010') throw Error('Original destination not yet implemented: ' + floor);
         const notice = $('stage-loading');
         if (notice) {
           notice.hidden = false;
@@ -1560,21 +1616,21 @@ export async function loadWalk(
             textureFile,
             (n: any, total: any) => {
               if (notice && generation === sessionGeneration)
-                notice.textContent = 'Preparando pasillo · ' + Math.round((n / total) * 100) + '%';
+                notice.textContent = 'Preparing hallway · ' + Math.round((n / total) * 100) + '%';
             },
             'hallway',
           );
         } catch (error) {
           if (notice && generation === sessionGeneration) {
             notice.disabled = false;
-            notice.textContent = 'No se pudo cargar el pasillo. Reintentar';
+            notice.textContent = 'Could not load the hallway. Retry';
           }
           throw error;
         }
         if (notice && generation === sessionGeneration) notice.hidden = true;
         if (generation !== sessionGeneration) {
           await next.destroy();
-          throw Error('Sesión cancelada');
+          throw Error('Session cancelled');
         }
         const halfTurn = new Float32Array([-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1]);
         next.toRoom = multiply(multiply(host.connector, halfTurn), inverseRigid(next.connector));
@@ -1616,10 +1672,10 @@ export async function loadFiles(files: any) {
       value: String(i),
       label: m.name,
     }));
-    status(modelList.length + ' modelos encontrados. Selecciona uno para inspeccionarlo.');
+    status(modelList.length + ' models found. Select one to inspect.');
   } catch (e) {
     modelList = [];
-    $('models').choices = [{ value: '', label: 'Sin modelos disponibles' }];
+    $('models').choices = [{ value: '', label: 'No models available' }];
     fail(e);
   } finally {
     busy = false;
@@ -1637,7 +1693,7 @@ export async function loadFiles(files: any) {
 export const ready = init();
 ready.catch((e: any) => {
   fail(e);
-  status('Inicialización detenida. Consulta el mensaje de error.');
+  status('Initialization stopped. Check the error message.');
 });
 export function pauseWalk() {
   inputActive = false;

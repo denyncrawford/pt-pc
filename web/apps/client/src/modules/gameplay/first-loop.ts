@@ -1,3 +1,4 @@
+import { prepareBaby } from '../effects/baby';
 // First playable slice: original f010 scripts and gc_p00_010, followed by f005.
 // Resource bytes stay in the user's archive; adjacent stages share decoded materials.
 import { prepareDemoActors } from '../sequences/demo-actors';
@@ -108,7 +109,7 @@ function transformVertices(vertices: any, m: any) {
 }
 export async function prepareFirstLoop(w: any, scene: any, file: any) {
   const destination = w.UTF8ToString(w._script_next_floor());
-  if (!destination) throw Error('Etapa sin sucesor nativo');
+  if (!destination) throw Error('Stage has no native successor');
   const initialFloor = scene.checkpoint?.floor ?? 'f010';
   const cycle = new StageCycle({ floor: initialFloor });
   const a = await new Psarc(file).open(),
@@ -118,9 +119,9 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     w._sequence_load(p, n),
   );
   if (frames !== 128)
-    throw Error('Secuencia de salida no compatible: ' + w.UTF8ToString(w._sequence_error()));
+    throw Error('Unsupported exit sequence: ' + w.UTF8ToString(w._sequence_error()));
   const p = w._stage_next_matrix();
-  if (!p) throw Error('Faltan conectores entre etapas');
+  if (!p) throw Error('Missing stage connectors');
   const next = w.HEAPF32.slice(p / 4, p / 4 + 16),
     inverse = inverseRigid(next);
   const ambient = await prepareDemoActors(w, scene, file, [
@@ -139,7 +140,15 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     'gc_p03_070',
     'gc_p03_011',
     'gc_p01_110',
+    'gc_p00_030',
+    'gc_p01_050',
+    'gc_p01_090',
+    'gc_p01_022',
+    'gc_p04_320',
+    'gc_p04_120',
+    'gc_p04_280',
   ]);
+  let baby: Awaited<ReturnType<typeof prepareBaby>> | undefined;
   try {
     const baseTangents = scene.tangents;
     const tangents = new Float32Array(baseTangents.length * 2);
@@ -217,16 +226,17 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
           placement.geom,
           (p: any, n: any) => w._world_add_geom(p, n, mp),
         );
-        if (n <= 0) throw Error('La siguiente etapa no tiene colisión');
+        if (n <= 0) throw Error('The next stage has no collision geometry');
       } finally {
         w._free(mp);
       }
       nextOwners.push({ placement, owner });
     }
     w._world_build();
+    baby = await prepareBaby(w, scene, file);
     const exit = scene.placements.find((p: any) => p.name.endsWith('_hallway_out')),
       entry = scene.placements.find((p: any) => p.name.endsWith('_hallway_in'));
-    if (!exit || !entry) throw Error('Faltan puertas originales');
+    if (!exit || !entry) throw Error('Missing original doors');
     const actors = Array.from({ length: w._sequence_actor_count() }, (_: any, i: any) => ({
       i,
       kind: w._sequence_actor_kind(i),
@@ -236,7 +246,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       doorActor = actors.find((a: any) => a.kind === 3 && a.name === 'ENV_shsb_hous001_door001')?.i,
       playerActor = actors.find((a: any) => a.kind === 4 && a.name === 'HM_plr0_main0_def')?.i;
     if ([cameraActor, doorActor, playerActor].some((i: any) => i === undefined))
-      throw Error('La secuencia carece de pistas obligatorias');
+      throw Error('The sequence is missing required tracks');
     const events = Array.from({ length: w._sequence_event_count() }, (_: any, i: any) => ({
       i,
       frame: w._sequence_event_start(i),
@@ -246,7 +256,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     }));
     const sample = (actor: any, frame: any) => {
       const p = w._sequence_sample(actor, 0, frame);
-      if (!p) throw Error('Pista original sin muestra');
+      if (!p) throw Error('Original track has no sample');
       return w.HEAPF32.slice(p / 4, p / 4 + 8);
     };
     const originalDoor = baseVertices.slice(
@@ -257,6 +267,8 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     await cycle.prepare(destination, async (floor: any) => ({ floor }));
     const host: any = {
       ambient,
+      handyLight: { name: 'PlayerHandyLight', data: new Float32Array(28), dynamic: true },
+      cameraControlled: false,
       cycle,
       photoPrepared: false,
       blocking: [],
@@ -300,7 +312,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
             !args[0]?.endsWith('/hallway/pt14_hallway.fpk') ||
             args.slice(1).join('|') !== 'next|startDoor|current|endDoor'
           )
-            throw Error('Etapa solicitada no compatible');
+            throw Error('Unsupported requested stage');
           host.ready = true;
           host.rebased = false;
           for (const { placement, owner } of nextOwners)
@@ -316,15 +328,35 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
             cycle.fail('Secuencia encadenada desconocida: ' + args[0]);
         } else if (name === 'SetDemoTransform') {
           const player = ambient.players.get(args[0]);
-          if (!player || args.length !== 8) throw Error('Transformación de secuencia inválida');
+          if (!player || args.length !== 8) throw Error('Invalid sequence transform');
           const m = rotation(args.slice(1, 5).map(Number));
           m.set(args.slice(5).map(Number), 12);
           player.origin = m;
+        } else if (name === 'MovementLock') {
+          host.movementLocked = args[0] === '1';
+        } else if (name === 'BabyMotion') {
+          baby!.play(args[0], args[1] === '1');
         } else if (name === 'Skip') {
           if (!ambient.stop(args[0])) cycle.fail('Skip desconocido: ' + args[0]);
+        } else if (name === 'XMarkClear') {
+          host.audio?.postId?.(0xa5fdfc86);
+          host.xmarkClearTime = host.audio?.time;
+          const applied = withString(w, 'Clearf050', (p: number) =>
+            w._script_controller_message(p),
+          );
+          if (applied < 0) throw Error('Could not execute Clearf050');
+          host.xmarkDoorDelivered = applied > 0;
+          host.onCheckpoint?.({
+            floor: host.floor,
+            photoWord: w._scene_photo_word(),
+            xmarkWord: w._scene_xmark_word(),
+          });
+          host.dirtyDoor = true;
+        } else if (name === 'XMarkCaption') {
+          host.audio?.showCaption?.(0x4af4f3d4);
         } else if (name === 'SetCondition') {
           if (args[0] !== 'PhotoPrepare' || w._scene_photo_prepare() <= 0)
-            cycle.fail('Condición original pendiente: ' + args[0]);
+            cycle.fail('Original condition not yet implemented: ' + args[0]);
           host.photoPrepared = true;
         } else if (name === 'ActivateStage') host.active = true;
         else if (name === 'GeomActive') {
@@ -362,14 +394,27 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       const result = withString(w, id, (d: any) =>
         withString(w, name, (m: any) => w._script_demo_message(d, m)),
       );
-      if (result < 0) throw Error('Mensaje original no compatible: ' + name);
+      if (result < 0) throw Error('Unsupported original message: ' + name);
       consume();
       record('message', id === 'gc_p00_010' ? name : id + ':' + name);
     }
+    host.handyLight.data[15] = 1;
+    const handyIndex = scene.baseLightingCounts?.lights ?? scene.lights.length;
+    scene.lights.splice(handyIndex, 0, host.handyLight);
+    if (scene.baseLightingCounts) scene.baseLightingCounts.lights++;
+    host.updateHandyLight = (position: number[], direction: number[]) => {
+      const ptr = w._handy_light_data() / 4;
+      host.handyLight.data.set(w.HEAPF32.subarray(ptr, ptr + 28));
+      host.handyLight.data.set(position, 0);
+      host.handyLight.data.set(direction, 8);
+      host.handyLight.data[16] = Number(
+        ambient.handyEnabled || ['f050', 'f070'].includes(host.floor),
+      );
+    };
     function visibility() {
-      // Until f050 has a complete executable host, keep its threshold physical.
+      // The next unimplemented chapter remains bounded by a physical threshold.
       // A floor identifier alone is not a prepared destination or a valid save.
-      const unavailable = host.floor === 'f060';
+      const unavailable = host.floor === 'f070';
       if (unavailable && exit.owner) w._world_owner_active(exit.owner, 1);
       for (const g of host.groups) {
         if (g.demoActor) continue;
@@ -392,7 +437,11 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       if (!w._scene_photo_collect_option()) return false;
       host.audio?.postId?.(0xe4b855b2);
       host.onPhotoCollected?.(256);
-      host.onCheckpoint?.({ floor: host.floor, photoWord: w._scene_photo_word() });
+      host.onCheckpoint?.({
+        floor: host.floor,
+        photoWord: w._scene_photo_word(),
+        xmarkWord: w._scene_xmark_word(),
+      });
       consume();
       visibility();
       host.dirtyDoor = true;
@@ -401,9 +450,17 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     host.bindGroups = (groups: any) => {
       host.groups = groups;
       ambient.bindGroups(groups);
+      baby!.visual.bindGroups(groups);
       visibility();
     };
-    host.tick = (position: any, yaw: any, move: any = [0, 0], zoomHeld = false) => {
+    host.tick = (
+      position: any,
+      yaw: any,
+      move: any = [0, 0],
+      zoomHeld = false,
+      actionHeld = false,
+    ) => {
+      w._events_action(actionHeld ? 1 : 0);
       const view = host.cameraPose;
       if (view) {
         const collected = w._events_view(
@@ -417,7 +474,11 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         if (collected) {
           record('PhotoCollected', collected);
           host.onPhotoCollected?.(collected);
-          host.onCheckpoint?.({ floor: host.floor, photoWord: w._scene_photo_word() });
+          host.onCheckpoint?.({
+            floor: host.floor,
+            photoWord: w._scene_photo_word(),
+            xmarkWord: w._scene_xmark_word(),
+          });
           host.audio?.postId?.(0xe4b855b2);
           consume();
           visibility();
@@ -437,21 +498,25 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
           if (code < 0) throw Error(w.UTF8ToString(w._script_last_error()));
         } else if (target === 'gc_p00_010' && ['walking', 'active'].includes(host.phase)) {
           if (host.floor === 'f005') {
-            host.blocking = [...host.unsupported].map((name: any) => 'comando pendiente ' + name);
+            host.blocking = [...host.unsupported].map(
+              (name: any) => 'command not yet implemented: ' + name,
+            );
             if (ambient.players.get('gc_p01_070').state !== 'finished')
-              host.blocking.push('secuencia del baño gc_p01_070');
+              host.blocking.push('bathroom sequence gc_p01_070');
             if (!host.photoPrepared) host.blocking.push('PhotoPrepare');
             if (ambient.players.get('gc_p04_310').state !== 'stopped')
-              host.blocking.push('parada original de cucarachas');
+              host.blocking.push('original cockroach stop event');
             if (host.blocking.length) {
               record('pending', host.blocking.join(', '));
               w._event_retry(i);
               continue;
             }
           } else if (host.floor === 'f020') {
-            host.blocking = [...host.unsupported].map((name: any) => 'comando pendiente ' + name);
+            host.blocking = [...host.unsupported].map(
+              (name: any) => 'command not yet implemented: ' + name,
+            );
             if (ambient.players.get('gc_p01_081').state !== 'finished')
-              host.blocking.push('secuencia del baño gc_p01_081');
+              host.blocking.push('bathroom sequence gc_p01_081');
             if (host.blocking.length) {
               record('pending', host.blocking.join(', '));
               w._event_retry(i);
@@ -459,7 +524,7 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
             }
           } else if (host.floor === 'f030') {
             host.blocking = [...host.unsupported].map(
-              (name: string) => 'comando pendiente ' + name,
+              (name: string) => 'command not yet implemented: ' + name,
             );
             for (const id of ['gc_p01_021', 'gc_p01_010'])
               if (ambient.players.get(id).state !== 'finished')
@@ -478,11 +543,27 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
               continue;
             }
           } else if (host.floor === 'f060') {
-            host.blocking = ['Recorrido del baño pendiente de completar'];
+            host.blocking = [...host.unsupported];
+            for (const id of ['gc_p00_030', 'gc_p01_050', 'gc_p01_090', 'gc_p01_022'])
+              if (ambient.players.get(id).state !== 'finished') host.blocking.push(id);
+            if (host.blocking.length) {
+              w._event_retry(i);
+              continue;
+            }
+          } else if (host.floor === 'f050') {
+            host.blocking = [...host.unsupported];
+            if (w._scene_xmark_word() !== 8)
+              host.blocking.push('Examine the marked portrait and press E');
+            if (host.blocking.length) {
+              w._event_retry(i);
+              continue;
+            }
+          } else if (host.floor === 'f070') {
+            host.blocking = ['f080: freezer events not yet implemented'];
             w._event_retry(i);
             continue;
           } else if (host.floor !== 'f010') {
-            cycle.fail('Etapa fuera del hito: ' + host.floor);
+            cycle.fail('Stage beyond the playable boundary: ' + host.floor);
           }
           start = {
             index: i,
@@ -494,20 +575,24 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
             w._event_ack(i, 1);
             record('sequence', target);
           }
-        } else if (host.floor === 'f060' && target === 'gc_p00_030') {
-          host.blocking = ['Recogida de la linterna pendiente de integración'];
-          w._event_retry(i);
         } else if (target)
           cycle.fail(
             w.UTF8ToString(w._event_condition(i)) +
               ' → ' +
               target +
-              ' (reproductor obligatorio pendiente)',
+              ' (required sequence player not yet implemented)',
           );
+      }
+      if (host.floor === 'f050' && w._scene_xmark_word() === 8 && !host.xmarkDoorDelivered) {
+        const delivered = withString(w, 'Clearf050', (p: number) =>
+          w._script_controller_message(p),
+        );
+        if (delivered < 0) throw Error('Could not open the portrait exit');
+        host.xmarkDoorDelivered = delivered > 0;
       }
       consume();
       if (start) {
-        if (!host.ready) throw Error('La siguiente etapa aún no está preparada');
+        if (!host.ready) throw Error('The next stage is not ready yet');
         host.cameraBlend = new NativeCameraBlend(
           ambient.metadata.get('gc_p00_010'),
           host.cameraPose,
@@ -528,12 +613,60 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
       }
       visibility();
     };
+    baby.update(0);
+    let babyTime = 0;
+    host.baby = baby;
     host.update = (dt: any) => {
+      if (
+        host.xmarkClearTime !== undefined &&
+        host.audio?.active &&
+        host.audio.time - host.xmarkClearTime >= 3
+      ) {
+        host.audio.postId?.(0xf27dac95);
+        host.xmarkClearTime = undefined;
+      }
       ambient.update(dt);
+      if (host.floor === 'f060' && host.audio?.active !== false) {
+        babyTime += dt;
+        if (babyTime >= 1 / 30) {
+          baby!.update(babyTime, host.audio);
+          babyTime = 0;
+          host.dirtyDoor = true;
+        }
+      }
       visibility();
       if (ambient.dirty) {
         host.dirtyDoor = true;
         ambient.dirty = false;
+      }
+      const cinematic = ambient.cameraPlayer;
+      host.cameraControlled = !!cinematic && cinematic.state === 'playing';
+      if (cinematic) {
+        const camActor = cinematic.actors.find((a: any) => a.kind === 0);
+        const rootActor = cinematic.actors.find(
+          (a: any) => a.kind === 4 && a.name === 'HM_plr0_main0_def',
+        );
+        if (!camActor || !rootActor) throw Error('Pickup is missing the original camera/body');
+        const cam = cinematic.sample(camActor.index),
+          root = cinematic.sample(rootActor.index);
+        const cm = multiply(cinematic.origin, rotation(cam));
+        const dir = transformPoint(cm, [0, 0, -1], 0);
+        const view = {
+          camera: transformPoint(cinematic.origin, cam.subarray(4, 7)),
+          position: transformPoint(cinematic.origin, root.subarray(4, 7)),
+          yaw: Math.atan2(dir[0], -dir[2]),
+          pitch: Math.asin(Math.max(-1, Math.min(1, dir[1]))),
+          basis: { right: [...cm.slice(0, 3)], up: [...cm.slice(4, 7)] },
+          fov: cinematic.use(() => 2 * Math.atan(6.75 / w._sequence_focal(cinematic.frame))),
+          released: cinematic.state === 'finished',
+        };
+        if (view.released) {
+          w._player_spawn(...view.position);
+          ambient.cameraPlayer = null;
+          ambient.cameraExposure = null;
+          ambient.cameraFocus = null;
+        }
+        return view;
       }
       if (host.phase !== 'sequence') return null;
       if (host.audioError) throw host.audioError;
@@ -586,9 +719,10 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         const localPosition = transformPoint(inverse, position),
           floor = w._world_floor(localPosition[0], localPosition[1] + 0.5, localPosition[2]);
         if (!Number.isFinite(floor) || Math.abs(floor - localPosition[1]) > 0.25)
-          throw Error('No hay suelo original en el destino de la secuencia');
+          throw Error('No original floor at the sequence destination');
         // Coordinate handoff is not proof that every event of the source floor ran.
         cycle.transfer(() => {});
+        if (sourceFloor === 'f050') ambient.stop('gc_p04_320', { notify: false });
         if (sourceFloor === 'f040') {
           ambient.stop('gc_p04_300', { notify: false });
           ambient.stop('gc_p04_350', { notify: false });
@@ -602,7 +736,8 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         w._events_reset();
         for (const name of ['condition_Light', 'condition_Setup_Sound', 'condition_0001'])
           withString(w, 'pt14_hallway|pt14_hallway_demo|common_demo|' + name, (p: any) => {
-            if (w._script_exec_condition(p) < 0) throw Error('No se pudo activar f005');
+            if (w._script_exec_condition(p) < 0)
+              throw Error('Could not activate ' + cycle.current.floor);
           });
         consume();
         for (const { owner } of nextOwners) w._world_owner_active(owner, 0);
@@ -633,9 +768,13 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
         host.rebased = true;
         visibility();
         record('transferred', sourceFloor + ' → ' + host.floor);
-        host.onCheckpoint?.({ floor: host.floor, photoWord: w._scene_photo_word() });
+        host.onCheckpoint?.({
+          floor: host.floor,
+          photoWord: w._scene_photo_word(),
+          xmarkWord: w._scene_xmark_word(),
+        });
         host.audio?.finish();
-        if (['f005', 'f020', 'f030', 'f040', 'f060'].includes(host.floor)) {
+        if (['f005', 'f020', 'f030', 'f040', 'f060', 'f050'].includes(host.floor)) {
           host.ready = false;
           host.active = false;
           const destination = w.UTF8ToString(w._script_next_floor());
@@ -653,11 +792,13 @@ export async function prepareFirstLoop(w: any, scene: any, file: any) {
     // Adjacent geometry is prefetched once. The user's archive is not copied or re-uploaded.
     host.destroy = () => {
       ambient.destroy();
+      baby?.destroy();
       cycle.destroy();
       for (const { owner } of nextOwners) w._world_owner_active(owner, 0);
     };
     return host;
   } catch (error) {
+    baby?.destroy();
     ambient.destroy();
     cycle.destroy();
     throw error;
@@ -741,7 +882,7 @@ export async function prepareOpening(w: any, scene: any, file: any) {
       prepareDestination: null,
       retryPreparation() {
         if (this.preparation || exitPrepared || !this.prepareDestination) return;
-        this.blocking = ['Preparando pasillo'];
+        this.blocking = ['Preparing hallway'];
         this.preparation = Promise.resolve()
           .then(() => this.prepareDestination(this.destination))
           .then(
@@ -754,9 +895,7 @@ export async function prepareOpening(w: any, scene: any, file: any) {
             (error: any) => {
               if (!disposed)
                 this.blocking = [
-                  'No se pudo preparar el pasillo: ' +
-                    error.message +
-                    ' · pulsa Jugar para reintentar',
+                  'Could not prepare the hallway: ' + error.message + ' · press Play to retry',
                 ];
             },
           )
@@ -987,14 +1126,14 @@ export async function prepareOpening(w: any, scene: any, file: any) {
 }
 
 export function openingHandoff(view: any, connector: any, worldFloor: any) {
-  if (!view?.exit || !connector) throw Error('Faltan conectores de salida');
+  if (!view?.exit || !connector) throw Error('Missing exit connectors');
   const halfTurn = new Float32Array([-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1]);
   const matrix = multiply(multiply(connector, halfTurn), inverseRigid(view.exit.connector));
   const position = transformPoint(matrix, view.exit.position),
     direction = transformPoint(matrix, [Math.sin(view.yaw), 0, -Math.cos(view.yaw)], 0);
   const floor = worldFloor(position[0], position[1] + 0.5, position[2]);
   if (!Number.isFinite(floor) || Math.abs(floor - position[1]) > 0.3)
-    throw Error('La salida no coincide con el suelo original del pasillo');
+    throw Error('The exit does not match the original hallway floor');
   return {
     position,
     camera: transformPoint(matrix, view.camera),

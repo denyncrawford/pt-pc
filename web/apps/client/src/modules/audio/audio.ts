@@ -1,3 +1,4 @@
+import { readPrefaceCaptions } from '../sequences/preface';
 import { Psarc, parseFpk, fpkEntry } from '../../lib/archives';
 import { withEntry, withString } from '../gameplay/runtime';
 import { loadDemoResources } from '../sequences/demo-resources';
@@ -43,7 +44,7 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
   const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
   if (ctx.sampleRate !== 48000) {
     await ctx.close();
-    throw Error('El mezclador original necesita salida a 48 kHz');
+    throw Error('The original mixer requires 48 kHz output');
   }
   const bgmStates = new Map(),
     pending = new Map(),
@@ -63,7 +64,7 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
       const request = ++serial;
       const timer = setTimeout(() => {
         pending.delete(request);
-        reject(Error('El audio no respondió: ' + type));
+        reject(Error('Audio did not respond: ' + type));
       }, 30000);
       pending.set(request, {
         resolve: (v: any) => {
@@ -82,10 +83,10 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
       new URL(/* @vite-ignore */ './audio-worklet.js', import.meta.url),
     );
     const response = await fetch(new URL(/* @vite-ignore */ './audio-core.wasm', import.meta.url));
-    if (!response.ok) throw Error('No se pudo cargar el núcleo de audio');
+    if (!response.ok) throw Error('Could not load the audio core');
     const wasm = await response.arrayBuffer();
     const ready = new Promise((resolve: any, reject: any) => {
-      const timer = setTimeout(() => reject(Error('El núcleo de audio no arrancó')), 30000);
+      const timer = setTimeout(() => reject(Error('The audio core did not start')), 30000);
       node = new AudioWorkletNode(ctx, 'pt-original-audio', {
         numberOfInputs: 0,
         numberOfOutputs: 1,
@@ -110,7 +111,7 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
         else if (m.type === 'meter') peak = m.peak;
         else if (m.type === 'bgm') for (const [name, on] of m.states) bgmStates.set(name, on);
       };
-      node.onprocessorerror = () => onError(Error('Se detuvo el procesador de audio'));
+      node.onprocessorerror = () => onError(Error('The audio processor stopped'));
     });
     await ready;
     const archive = await new Psarc(file).open();
@@ -121,7 +122,7 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
       'sfx_common.sbp',
       'bgm_common.sbp',
     ]) {
-      progress('Preparando audio original: ' + name);
+      progress('Preparing original audio: ' + name);
       const bytes = (await archive.read('as/sh/sound/asset/' + name)).slice().buffer;
       await request('load', { name, bytes, package: Number(name.endsWith('.sbp')) }, [bytes]);
     }
@@ -138,7 +139,8 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
         await archive.read('as/sh/level/ui/subtitles/EngVoice/' + language + 'Text/subtitle.fpk'),
       ),
       entry = pkg.entries.find((e: any) => e.name.endsWith('.subp'));
-    if (!entry) throw Error('Falta la tabla original de subtítulos');
+    if (!entry) throw Error('Missing original subtitle table');
+    let puzzleCaptions = readPrefaceCaptions(fpkEntry(pkg, entry.name));
     const bytes = fpkEntry(pkg, entry.name).slice().buffer;
     await request('subtitles', { bytes }, [bytes]);
     master = ctx.createGain();
@@ -164,18 +166,24 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
         return language;
       },
       async setLanguage(value: any) {
-        if (!languages.includes(value)) throw Error('Subtítulos no disponibles');
+        if (!languages.includes(value)) throw Error('Subtitles unavailable');
         const revision = ++languageRevision;
         const pack = parseFpk(
             await archive.read('as/sh/level/ui/subtitles/EngVoice/' + value + 'Text/subtitle.fpk'),
           ),
           entry = pack.entries.find((e: any) => e.name.endsWith('.subp'));
-        if (!entry) throw Error('Tabla de subtítulos ausente');
+        if (!entry) throw Error('Missing subtitle table');
         const bytes = fpkEntry(pack, entry.name).slice().buffer;
         if (revision !== languageRevision || closed) return;
         clock.clear();
         await request('subtitles', { bytes }, [bytes]);
+        puzzleCaptions = readPrefaceCaptions(fpkEntry(pack, entry.name));
         language = value;
+      },
+      showCaption(id: number) {
+        const lines = puzzleCaptions.get(id);
+        if (!lines) throw Error('Missing original text: ' + id.toString(16));
+        clock.notice({ kind: 0, playing: 'puzzle', id: String(id), time: ctx.currentTime, lines });
       },
       clock,
       get time() {
@@ -243,7 +251,7 @@ export async function prepareAudio(file: any, progress: any = () => {}, onError:
         if (started) send({ type: 'listener', position, forward });
       },
       effect(key: any, node: any, position: any, spatial: any = {}) {
-        if (!started) throw Error('Audio de secuencias todavía no activo');
+        if (!started) throw Error('Sequence audio is not active yet');
         send({ type: 'effect', key, node, position, ...spatial });
       },
       releaseEffects(prefix: any) {
@@ -317,7 +325,7 @@ export class HallwayAcoustics {
       n = w._acoustic_area(...position),
       name = w.UTF8ToString(w._acoustic_area_name()),
       sends = [];
-    if (n > 16) throw Error('Demasiados envíos acústicos');
+    if (n > 16) throw Error('Too many acoustic sends');
     for (let i = 0; i < n; i++)
       sends.push({ bus: w.UTF8ToString(w._acoustic_bus(i)), level: w._acoustic_level(i) });
     return { name, sends };
@@ -435,10 +443,10 @@ export async function prepareLocatorSounds(w: any, scene: any, file: any, audio:
     if (!path) continue;
     if (!cache.has(path)) {
       const read = scene.entries.get(path) || resources.entries.get(path);
-      if (!read) throw Error('Falta efecto original: ' + path);
+      if (!read) throw Error('Missing original effect: ' + path);
       const effect = withEntry(w, read(), path, (p: any, n: any) => {
         const result = w._effect_nodes_json(p, n);
-        if (!result) throw Error('Efecto inválido: ' + path);
+        if (!result) throw Error('Invalid effect: ' + path);
         return JSON.parse(w.UTF8ToString(result));
       });
       cache.set(path, effect);
@@ -449,7 +457,7 @@ export async function prepareLocatorSounds(w: any, scene: any, file: any, audio:
     )
       unresolved.push(path);
     if (effect.sound?.play) items.push({ index: i, node: effect.sound, visible: false });
-    else if (path.includes('/sound/')) throw Error('Nodo de sonido original sin resolver: ' + path);
+    else if (path.includes('/sound/')) throw Error('Unresolved original sound node: ' + path);
   }
   return new LocatorSounds(w, audio, items, unresolved);
 }

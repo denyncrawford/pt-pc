@@ -191,7 +191,7 @@ test(
         assert.equal(host.ambient.players.get('gc_p04_340').state, 'stopped');
         assert.ok(
           host.groups
-            .filter((g: any) => g.demoActor?.player.name === 'gc_p04_340')
+            .filter((g: any) => g.demoActor?.player?.name === 'gc_p04_340')
             .every((g: any) => !g.visible),
         );
         assert.equal(host.floor, 'f030');

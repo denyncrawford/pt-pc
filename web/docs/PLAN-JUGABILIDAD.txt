@@ -1,3 +1,26 @@
+CHECKPOINT VIGENTE — 2026-10-16 — JUGABILIDAD PAUSADA POR EL USUARIO
+Prioridad activa: diseño de distribución privada/self-hosted y documentación.
+No avanzar loops mientras se trabaja en este hito. No commits/push automáticos.
+Último destino habilitado: f070. Orden: f000 → f010 → f005 → f020 → f030 →
+f040 → f060 → f050 (XMark resuelto) → f070. f080 NO está habilitada.
+f060: linterna, bebé, espejo, eventos exteriores y salida; usuario confirma.
+f050: interacción XMark, texto, cues y salida animada a f070; fragmentos Photo
+son un puzzle separado. Repeticiones sin resolver/persecución siguen pendientes.
+f070: gc_p04_120 (Lisa/ventana/cristales), gc_p04_280 (respiración/regreso),
+HelloPrepare y checkpoint integrados. Guardado: floor + PhotoWord + xmarkWord;
+reside en navegador, sin sincronización remota. No reiniciar al retomar.
+Evidencia última entrega: f060/f070/demo-actors 3/3; typecheck y build pasan;
+cristales WebGPU aislado 30 frames/3 ciclos sin errores. Esto NO certifica
+comparación audiovisual completa ni rendimiento en todas las escenas.
+Abiertos: sombras demasiado marcadas reportadas, fidelidad de luz/Lisa/VFX,
+perfil de tirones al fondo del pasillo, inventario restante de efectos.
+RETOMAR JUEGO AQUÍ: Freezer f080, CallSound Play_voice_baby_mimicry_02 en
+CNP_FRZ_INNER, modelo/movimiento, radio Play_radio_voice_04 y luces ID51/50;
+validar secuencia/salida y guardado antes de abrir frontera. Luego Hello f090,
+f100, Peephole f110, falso error f120, TrueEnd f160 y ending.
+Fuente detallada: REGISTRO-EVENTOS.txt. Distribución: DISTRIBUTION.md y
+SERVER-INSTALL.md. Este bloque prevalece sobre estados históricos de abajo.
+
 PLAN DE IMPLEMENTACIÓN — CONTINUIDAD Y RENDIMIENTO
 Actualizado: 2026-10-14
 Estado: en ejecución; entregas 0 y 1 parciales, 2–5 pendientes. Sustituye el orden de próximas entregas de las entradas históricas del roadmap; no modifica sus evidencias.
@@ -64,3 +87,71 @@ EJECUCIÓN 2026-10-14 — ENTRADA f060
 Implementadas las dependencias de entrada gc_p03_070/011 y gc_p01_110. Transferencia f040→f060 y reanudación de f060 probadas conservando fragmentos. Frontera desplazada al recorrido interior pendiente del baño; no se declara f060 completa ni f050 disponible.
 El reproductor admite 32 instancias preparadas (antes 16) para coexistencia de intro y pasillo; mantiene límite de memoria total y límites de decodificación. Prueba verifica rechazo de la instancia 33 y liberación completa.
 Próxima implementación: resolver modelo del jugador mediante sus parts para gc_p00_030, entregar cámara/control de forma reversible, luz original de linterna y audio; después enlazar las cuatro secuencias restantes del baño. No basta añadir esos IDs al inventario.
+
+REVISIÓN 2026-10-16 — usuario alcanza baño abierto de f060
+Confirmado en código: gc_p00_030 se reintenta con bloqueo explícito de recogida
+pendiente. No es una acción secreta del jugador ni f060 terminada.
+Guía S1, sección Open Bathroom, revisada: zoom en linterna → recogida →
+encierro del baño → inspección con zoom de criatura del lavabo → ruidos del
+pasillo/puerta → mirar espejo → fin de ruidos/reapertura → salida al siguiente
+ciclo. Implementar disparadores y tiempos desde FOX2/Lua/FSM, no de la prosa.
+Siguiente hito: terminar esta cadena y verificar f060→f050 con guardado.
+Después f050: interacción XMark del retrato para autorizar salida.
+Fidelidad pendiente confirmada por captura: sombras de lámpara todavía
+excesivamente duras en mitad inferior/paredes/suelo; la corrección del cono
+resolvió el techo, no toda la proyección. No declarar iluminación igualada.
+
+ENTREGA 2026-10-16 — progreso del baño conectado
+Estado lógico comprobado: f060 completo hasta transferencia a entrada f050,
+con recogida, cámara, encierro, Baby3/audio, espejo, reapertura y PadEnable.
+Checkpoint f050 restaurable con fragmentos conservados. No habilitar su salida
+hasta implementar XMark y las repeticiones originales.
+La validación del baño usa waypoints: pendiente recorrido con colisiones reales
+y captura GPU. Pendientes de presentación: pose/máscara del haz de linterna,
+DOF/interpolación de lente, comprobación de mallas y comparación de sombras.
+Corregida proyección de sombras spot con near=innerRange y cono original;
+no se eliminaron sombras. Prueba de proyección no sustituye comparación visual.
+
+2026-10-16 — XMark del retrato: interacción y persistencia
+IMPLEMENTADO Y PROBADO: en f050, dentro de trap_x_mark, mirar el retrato y
+pulsar E/X/Enter/Espacio o clic izquierdo activa XMark (4→8). No requiere
+fragmentos de Photo ni mantener zoom. Se intercambian XMarkInit/XMark por
+XMarkPic1 y se muestran XMarkText/XMarkText1. Evento A5FDFC86 una vez y
+F27DAC95 a los tres segundos de reloj de audio activo. Zoom sobre el texto
+revelado solicita caption 4AF4F3D4 de la tabla original del idioma seleccionado.
+Guardado: xmarkWord opcional, compatible con partidas antiguas; la solución
+se restaura sin borrar PhotoWord. Reiniciar explícitamente vuelve a inicio.
+Clearf050: puente a ShGameControllerMessageScript con filtros originales de
+habilitación y floor. En primera visita el listener está deshabilitado y la
+puerta del vestíbulo ya está abierta; no se fuerza otra apertura artificial.
+VALIDADO: tests/xmark.test.ts (mirada errónea, fuera del trigger, pulsación,
+sonido una sola vez, texto por zoom, variantes, guardado/recarga/reinicio),
+world-photo y f060→f050. Verificación lógica con archivo local, no visual GPU.
+LÍMITE ACTUAL: f050 con retrato resoluble; f070 NO habilitada. La puerta de
+escaleras conserva colisión. Repeticiones f050/GetLoopCount y persecución de
+Lisa siguen pendientes. XMarkPicEf cambia su visibilidad nativa, pero su
+presentación VFX GPU no está certificada. No declarar f050 completa.
+SIGUIENTE BLOQUEO CONCRETO: gc_p04_120 (f070), frame127, exige el efecto
+/Assets/sh/effect/vfx_data/dust/fx_sh_dstgls01_s1.vfx. El reproductor de demos
+solo admite efectos sonoros; falta enlazar simulación y dibujo VFX de demos.
+Además gc_p04_280 declara HM_och0_main0_def sin pista: omitir solo metadatos
+no referenciados por eventos, sin ocultar modelos realmente necesarios; su
+functor 62B47A5B81EC debe retirar la instancia del efecto. Las pruebas de
+investigación detectaron ambos casos; no se han omitido para pasar de fase.
+PRUEBA MANUAL: recargar cliente actualizado conservando partida f050; buscar
+el retrato marcado cerca de la radio, acercarse, centrarlo y pulsar E una vez.
+Comprobar cambio del retrato y dos cues (inmediato y +3s); mirar el texto que
+aparece y usar botón derecho para leerlo. Salir/cargar: retrato resuelto y
+fragmentos conservados. No reiniciar para esta prueba. La escalera todavía
+marca el límite de implementación, no una acción adicional del jugador.
+
+2026-10-16 — avance verificado hasta f070 (sustituye el límite anterior f050)
+Salida animada f050→f070 habilitada tras XMark; gc_p04_120/280, Lisa de ventana,
+cristales nativos, retirada de efectos y checkpoint f070 integrados. Pruebas
+f060/f070/demo-actors: 3/3; GPU aislada de cristales: 30 frames y tres ciclos
+sin errores. Pendiente comparación audiovisual en escena y perfil de FPS.
+Detalle, evidencia y pasos manuales: REGISTRO-EVENTOS.txt, última entrada.
+Próximo bloque obligatorio: Freezer de f080 (CallSound, hueso CNP_FRZ_INNER,
+voz de bebé), radio, luces y salida. gc_p02_520 aislada pasa, pero no cubre
+estos eventos. Mantener f080 bloqueada hasta completar/validar ese recorrido;
+luego integrar Hello f090. Repetición f050 sin resolver sigue pendiente.

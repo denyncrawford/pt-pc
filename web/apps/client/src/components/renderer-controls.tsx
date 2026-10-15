@@ -14,7 +14,7 @@ export function GraphicsControls() {
           key={id}
           className="my-2.5 flex min-h-[38px] items-center justify-between gap-4 text-lg text-[#ccc]"
         >
-          {['Sombras', 'Reflejos', 'Luz indirecta', 'Espejo'][i]}
+          {['Shadows', 'Reflections', 'Indirect lighting', 'Mirror'][i]}
           <input
             id={id}
             type="checkbox"
@@ -55,12 +55,12 @@ export function DeveloperTools() {
   const models = control('models');
   return (
     <details>
-      <summary className="cursor-pointer">Herramientas de desarrollo</summary>
+      <summary className="cursor-pointer">Developer tools</summary>
       <div className="my-3 flex flex-wrap gap-2.5">
-        <button onClick={() => control('inspect-mirror').click()}>Probar espejo</button>
-        <button onClick={() => control('demo').click()}>Pasillo de prueba</button>
+        <button onClick={() => control('inspect-mirror').click()}>Test mirror</button>
+        <button onClick={() => control('demo').click()}>Test hallway</button>
         <label className="cursor-pointer rounded-lg border border-[#526149] px-5 py-3">
-          Abrir archivo
+          Open file
           <input
             className="sr-only"
             type="file"
@@ -74,7 +74,7 @@ export function DeveloperTools() {
           />
         </label>
         <select
-          aria-label="Modelo del archivo"
+          aria-label="Archive model"
           value={models.value}
           disabled={models.disabled}
           className="max-w-full bg-[#27332a] p-2"
@@ -90,7 +90,7 @@ export function DeveloperTools() {
               </option>
             ))
           ) : (
-            <option value="">Selecciona archivos locales</option>
+            <option value="">Select local files</option>
           )}
         </select>
       </div>

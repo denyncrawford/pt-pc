@@ -38,17 +38,17 @@ function region(bytes: Uint8Array, offset: number, length: number) {
       offset >= 0 &&
       length >= 0 &&
       offset + length <= bytes.length,
-    'Archivo truncado o índice inválido',
+    'Truncated file or invalid index',
   );
   return bytes.subarray(offset, offset + length);
 }
 export async function readSlice(file: ArchiveSource, offset: number, length: number) {
   check(
     length <= MAX_ENTRY && offset >= 0 && offset + length <= file.size,
-    'Lectura fuera de rango o demasiado grande',
+    'Read is out of range or too large',
   );
   const bytes = new Uint8Array(await file.slice(offset, offset + length).arrayBuffer());
-  check(bytes.length === length, 'Lectura incompleta');
+  check(bytes.length === length, 'Incomplete read');
   return bytes;
 }
 export function unwrap(bytes: Uint8Array) {
@@ -74,12 +74,12 @@ export function unwrap(bytes: Uint8Array) {
 export function parseFpk(raw: Uint8Array) {
   const bytes = unwrap(raw),
     d = view(bytes);
-  check(bytes.length >= 48 && text.decode(bytes.subarray(0, 6)) === 'foxfpk', 'FPK no válido');
+  check(bytes.length >= 48 && text.decode(bytes.subarray(0, 6)) === 'foxfpk', 'Invalid FPK');
   const count = d.getUint32(36, true),
     refs = d.getUint32(40, true);
   check(
     count <= 100000 && refs <= 100000 && 48 + count * 48 + refs * 16 <= bytes.length,
-    'Tabla FPK no válida',
+    'Invalid FPK table',
   );
   function nameAt(p: number) {
     return text.decode(region(bytes, d.getUint32(p, true), d.getUint32(p + 8, true)));
@@ -97,7 +97,7 @@ export function parseFpk(raw: Uint8Array) {
 }
 export function fpkEntry(pkg: Fpk, name: string) {
   const entry = pkg.entries.find((e) => e.name === name);
-  check(entry, 'Entrada FPK ausente');
+  check(entry, 'Missing FPK entry');
   const bytes = region(pkg.bytes, entry.offset, entry.size);
   return bytes;
 }
@@ -131,7 +131,7 @@ export class Psarc {
         count <= 1000000 &&
         this.blockSize > 0 &&
         this.blockSize <= 1048576,
-      'Cabecera PSARC no válida',
+      'Invalid PSARC header',
     );
     const toc = await readSlice(this.file, 32, tocLength - 32),
       t = view(toc);
@@ -159,13 +159,13 @@ export class Psarc {
   }
   async readIndex(index: number) {
     const e = this.entries[index];
-    check(e && e.size <= MAX_ENTRY, 'Entrada PSARC ausente o demasiado grande');
+    check(e && e.size <= MAX_ENTRY, 'PSARC entry is missing or too large');
     const out = new Uint8Array(e.size);
     let cursor = e.offset,
       written = 0,
       block = e.block;
     while (written < e.size) {
-      check(block < this.blocks.length, 'Índice de bloque PSARC inválido');
+      check(block < this.blocks.length, 'Invalid PSARC block index');
       const stored = this.blocks[block++] || this.blockSize,
         remaining = e.size - written;
       check(stored <= this.blockSize, 'Bloque PSARC demasiado grande');
@@ -201,7 +201,7 @@ export class Psarc {
           }
         }
       }
-      check(bytes.length > 0 && bytes.length <= remaining, 'Tamaño de bloque PSARC inválido');
+      check(bytes.length > 0 && bytes.length <= remaining, 'Invalid PSARC block size');
       out.set(bytes, written);
       written += bytes.length;
     }
@@ -209,7 +209,7 @@ export class Psarc {
   }
   read(name: string) {
     const id = this.names.get(name);
-    check(id !== undefined, 'Paquete no encontrado: ' + name);
+    check(id !== undefined, 'Package not found: ' + name);
     return this.readIndex(id);
   }
 }
@@ -234,7 +234,7 @@ export async function discoverModels(
     if (/\.psarc$/i.test(file.name)) {
       archive = await new Psarc(file).open();
       queue = [...archive.names.keys()].filter((n) => /\/hallway\/.*\.fpkd?$/.test(n));
-      check(queue.length, 'No se encontró el paquete hallway en este PSARC');
+      check(queue.length, 'The hallway package was not found in this PSARC');
       readPackage = (name: string) => archive!.read(name);
     } else if (/\.fpkd?$/i.test(file.name)) {
       queue = [file.name];
@@ -244,9 +244,9 @@ export async function discoverModels(
     while (queue.length) {
       const name = queue.shift()!;
       if (visited.has(name)) continue;
-      check(visited.size < 128, 'Se alcanzó el límite de 128 paquetes');
+      check(visited.size < 128, 'The 128-package limit was reached');
       visited.add(name);
-      progress('Leyendo ' + name);
+      progress('Reading ' + name);
       const pkg = parseFpk(await readPackage(name));
       for (const entry of pkg.entries.filter((e) => /\.fmdl$/i.test(e.name))) {
         const entryName = entry.name;
@@ -262,6 +262,6 @@ export async function discoverModels(
         }
     }
   }
-  check(models.length, 'No se encontraron modelos FMDL en los archivos seleccionados');
+  check(models.length, 'No FMDL models were found in the selected files');
   return models;
 }

@@ -19,8 +19,9 @@ existing `.data/` library. Keep the terminal open; Ctrl+C stops the server.
 
 For a fresh checkout, put Emscripten on PATH (tested with 6.0.12), then run
 `bun run build:wasm`. GLM, Lua and audio codebooks are downloaded with checksum
-verification. Build the self-contained .NET 10 extraction helper using
-`tools/macos/build_local_extractor.sh`; see [helper setup](web/apps/server/README.md).
+verification. The .NET 10 helper build script is `tools/macos/build_local_extractor.sh`;
+its multi-file output needs packaging before use with the current launcher. See
+[helper requirements and installation](web/docs/SERVER-INSTALL.md).
 The HTTP server is Bun; .NET is used only by the helper during import.
 
 ## Layout
@@ -65,25 +66,50 @@ React owns wizard and web-setting state. The original game menu keeps its native
 canvas renderer (including the puzzle), with an imperative adapter at that boundary.
 Browser DOM types are still needed for canvas/input/browser APIs, not as a UI framework.
 
+The web interface and original options menu use English. New installations default
+to English subtitles; existing subtitle preferences are preserved and other game
+subtitle languages remain selectable.
+
 ## Current gameplay
 
-The intro, original menu, hallway resources and initial loop progression are
-implemented. PhotoOption shares puzzle state between the menu and stages; the
-remaining fragments and later progression are unfinished. See the dated status
-in [the roadmap](web/docs/ROADMAP.txt). Historical entries describe earlier
-checkpoints, not the current completeness level.
+As of 2026-10-16, the enabled route is:
 
-## Publication and distribution
+`f000 → f010 → f005 → f020 → f030 → f040 → f060 → f050 → f070`
 
-`bun run audit:publication` audits staged changes relative to the native baseline.
-It rejects added binaries, local data directories and private path markers.
-Game archives, extracted resources, captures, caches and generated output must
-never be included in source commits or release images. Upstream code and
-third-party license notices are retained.
+The bathroom chain, flashlight, baby/mirror events, XMark portrait interaction,
+solved-portrait exit, and f070 window/Lisa/glass/breath events are integrated.
+The five world photo fragments and menu fragment share their separate puzzle
+state. Saves retain the floor, photo state and portrait state in browser storage.
+**f080 and subsequent loops/ending remain unavailable.** Unsolved f050 repeats
+and pursuit are also unfinished. Logical route tests and isolated GPU checks do
+not certify complete audiovisual fidelity. Lighting/shadows and event-related
+frame stalls remain open. Native graphics enhancements and extras are not all
+ported; do not apply the native README's feature list to the web build.
 
-The server remains loopback-only. A local release bundle is the next recommended
-milestone; a private Docker image follows Linux-helper validation. See
-[the distribution plan](web/docs/DISTRIBUTION.md) for acceptance gates.
+Gameplay is paused at this checkpoint while distribution is prepared. Resume
+from the Freezer events in f080, then Hello f090; see the current block at the top
+of [the roadmap](web/docs/ROADMAP.txt) and [event register](web/docs/REGISTRO-EVENTOS.txt).
+
+## Server installation and releases
+
+Follow [server installation](web/docs/SERVER-INSTALL.md) for the current source
+setup and the proposed private deployment. The current server binds to loopback;
+a ready-to-deploy Linux container is **not yet delivered**. Do not expose the
+local launcher directly to the internet.
+
+The primary delivery target is one Docker image containing Bun/Hono, the built
+React frontend, WASM modules and a validated Linux extraction helper. GHCR will
+host versioned images; GitHub prereleases will hold a deployment kit, checksums,
+license notices and matching source information. A mounted `/data` retains the
+user's imported library. Progress currently stays in the browser, not that volume.
+See [the distribution plan](web/docs/DISTRIBUTION.md) for release gates.
+
+`bun run audit:publication` audits **staged source changes** relative to the
+native baseline. It is not an audit of untracked files, an image, or a release.
+PKG files, extracted resources, private captures, caches and local outputs must
+never enter published source or images. Application JS/CSS/WASM and helper builds
+are generated from source for releases and are deliberately excluded from Git.
+Preserve upstream attribution and third-party license/source obligations.
 
 ## Workspace ownership and typing
 

@@ -1,14 +1,28 @@
-Run from the repository root: bun dev
-The browser wizard selects a PKG, imports it and opens the walkable hallway.
-HTTP server: Bun.serve. Frontend: browser modules + WebGPU/WASM.
-Local assets: .data/ (ignored). Extraction helper: .cache/extractor/ (ignored).
-Existing imports are detected. No game assets are committed.
+# Bun / Hono server
 
-The current Mac has the extraction helper prepared. For a fresh checkout,
-PT_EXTRACTOR can point at a self-contained PT.MacExtract built from
-installer/MacLocal using tools/macos/build_local_extractor.sh and patched
-LibOrbisPkg. The single-file helper must include its runtime dependencies.
-Bun is the HTTP backend; .NET is only used by this helper during PKG import.
+The server serves the built React frontend, WASM, import API and range requests
+for the local game library. The browser executes the game; the server does not
+render it. One process owns one library.
 
-Tests: bun test (range tests); package test script also runs web parser tests.
-Current scope: original architectural hallway with native WASM collision. Full gameplay and public hosting remain pending.
+From the repository root, `bun dev` builds the client and starts the local wizard.
+WASM and a validated extraction helper must already be prepared. See
+[web development setup](../../../README-WEB.md) and
+[server installation](../../docs/SERVER-INSTALL.md) for prerequisites, commands
+and the current helper packaging limitation.
+
+The current launcher binds to `127.0.0.1`, uses a tokenized local URL and writes
+library resources under `--data` (development default: `.data/`). It is not yet
+an authenticated public hosting service. Linux extraction, reverse-proxy origin
+configuration, storage recovery and resumable imports are pending.
+
+The target distribution is a single private Docker container with a persistent
+`/data` volume; no game content ships in the image. See the
+[release design](../../docs/DISTRIBUTION.md). Gameplay progress currently lives in
+the browser and is not part of the server library backup.
+
+Run backend checks from the repository root:
+
+```sh
+bun run --cwd web/apps/server typecheck
+bun run --cwd web/apps/server test
+```

@@ -22,10 +22,10 @@ export function makeLightingLuts() {
 }
 export function materialTableRow(texture: any, index: any) {
   if (!Number.isInteger(index) || index < 0 || index > 255)
-    throw Error('Índice de material fuera de rango');
+    throw Error('Material index out of range');
   if (!texture) return [1, 1, 1, 0, 10 / 255, 0, 0, 0]; // Native built-in resource fallback.
   if (texture.width !== 256 || texture.height !== 2 || texture.rgba.length !== 2048)
-    throw Error('Tabla de materiales inválida');
+    throw Error('Invalid material table');
   return [
     ...texture.rgba.slice(index * 4, index * 4 + 4),
     ...texture.rgba.slice((256 + index) * 4, (256 + index) * 4 + 4),

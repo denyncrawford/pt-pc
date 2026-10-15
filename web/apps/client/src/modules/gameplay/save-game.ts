@@ -1,9 +1,20 @@
 /** Browser save data contains progress only, never resources from the user's PKG. */
-export const savedFloors = ['f000', 'f010', 'f005', 'f020', 'f030', 'f040', 'f060'] as const;
+export const savedFloors = [
+  'f000',
+  'f010',
+  'f005',
+  'f020',
+  'f030',
+  'f040',
+  'f060',
+  'f050',
+  'f070',
+] as const;
 export type SavedFloor = (typeof savedFloors)[number];
 export interface Checkpoint {
   floor: SavedFloor;
   photoWord: number;
+  xmarkWord?: 1 | 4 | 8;
 }
 export interface SavedGame extends Checkpoint {
   version: 1;
@@ -30,8 +41,15 @@ export function validateCheckpoint(value: unknown): Checkpoint {
     value.photoWord < 0 ||
     value.photoWord > 0x1ff
   )
-    throw Error('La partida guardada no es compatible. No se ha borrado tu progreso.');
-  return { floor: value.floor, photoWord: value.photoWord };
+    throw Error('This saved game is not compatible. Your progress has not been deleted.');
+  const xmarkWord = 'xmarkWord' in value ? value.xmarkWord : undefined;
+  if (xmarkWord !== undefined && xmarkWord !== 1 && xmarkWord !== 4 && xmarkWord !== 8)
+    throw Error('The portrait state is not compatible. Your progress has not been deleted.');
+  return {
+    floor: value.floor,
+    photoWord: value.photoWord,
+    ...(xmarkWord === 1 || xmarkWord === 4 || xmarkWord === 8 ? { xmarkWord } : {}),
+  };
 }
 function decode(raw: string): SavedGame {
   const value: unknown = JSON.parse(raw);
@@ -45,7 +63,7 @@ function decode(raw: string): SavedGame {
     typeof value.updatedAt !== 'number' ||
     !Number.isFinite(value.updatedAt)
   )
-    throw Error('La versión del guardado no es compatible. No se ha borrado tu progreso.');
+    throw Error('This save version is not compatible. Your progress has not been deleted.');
   return { ...checkpoint, version: 1, updatedAt: value.updatedAt };
 }
 /** Atomic localStorage replacement plus previous valid slot. Tokenized host URLs never enter the key. */
@@ -65,21 +83,24 @@ export class SaveGameStore {
       } catch {}
     }
     throw Error(
-      'No se pudo leer la partida guardada. Se conserva para recuperarla; no se iniciará otra automáticamente.',
+      'Could not read your saved game. It has been kept for recovery; a new game will not start automatically.',
     );
   }
   write(checkpoint: Checkpoint): SavedGame {
     const next = { ...validateCheckpoint(checkpoint), version: 1 as const, updatedAt: this.now() };
     const previous = this.read();
-    if (previous && previous.floor === next.floor && previous.photoWord === next.photoWord)
+    if (
+      previous &&
+      previous.floor === next.floor &&
+      previous.photoWord === next.photoWord &&
+      previous.xmarkWord === next.xmarkWord
+    )
       return previous;
     try {
       if (previous) this.storage.setItem(BACKUP, JSON.stringify(previous));
       this.storage.setItem(KEY, JSON.stringify(next));
     } catch {
-      throw Error(
-        'No se pudo guardar el progreso en este navegador. El guardado anterior se conserva.',
-      );
+      throw Error('Could not save progress in this browser. Your previous save has been kept.');
     }
     return next;
   }

@@ -1,3 +1,26 @@
+CHECKPOINT VIGENTE — 2026-10-16 — JUGABILIDAD PAUSADA POR EL USUARIO
+Prioridad activa: diseño de distribución privada/self-hosted y documentación.
+No avanzar loops mientras se trabaja en este hito. No commits/push automáticos.
+Último destino habilitado: f070. Orden: f000 → f010 → f005 → f020 → f030 →
+f040 → f060 → f050 (XMark resuelto) → f070. f080 NO está habilitada.
+f060: linterna, bebé, espejo, eventos exteriores y salida; usuario confirma.
+f050: interacción XMark, texto, cues y salida animada a f070; fragmentos Photo
+son un puzzle separado. Repeticiones sin resolver/persecución siguen pendientes.
+f070: gc_p04_120 (Lisa/ventana/cristales), gc_p04_280 (respiración/regreso),
+HelloPrepare y checkpoint integrados. Guardado: floor + PhotoWord + xmarkWord;
+reside en navegador, sin sincronización remota. No reiniciar al retomar.
+Evidencia última entrega: f060/f070/demo-actors 3/3; typecheck y build pasan;
+cristales WebGPU aislado 30 frames/3 ciclos sin errores. Esto NO certifica
+comparación audiovisual completa ni rendimiento en todas las escenas.
+Abiertos: sombras demasiado marcadas reportadas, fidelidad de luz/Lisa/VFX,
+perfil de tirones al fondo del pasillo, inventario restante de efectos.
+RETOMAR JUEGO AQUÍ: Freezer f080, CallSound Play_voice_baby_mimicry_02 en
+CNP_FRZ_INNER, modelo/movimiento, radio Play_radio_voice_04 y luces ID51/50;
+validar secuencia/salida y guardado antes de abrir frontera. Luego Hello f090,
+f100, Peephole f110, falso error f120, TrueEnd f160 y ending.
+Fuente detallada: REGISTRO-EVENTOS.txt. Distribución: DISTRIBUTION.md y
+SERVER-INSTALL.md. Este bloque prevalece sobre estados históricos de abajo.
+
 2026-10-14 — Tailwind frontend
 Tailwind 4 + Vite integrated; React wizard/settings utility classes and external compiled app.css served by Hono. Native canvas menu preserved, no shadcn required. Typecheck/build/format pass; 69 tests pass, 38 private-asset tests skipped for this UI-only change. Browser wizard inspected with no console errors.
 
@@ -1296,3 +1319,76 @@ grandes bandas sobre el techo; no constituye igualdad visual completa.
 PENDIENTE: vidrio Liquid, halo con oclusión, variante roja StageLight y luz
 adyacente. Mantener comparación de f040 en cada fase y de f010 a igual cámara.
 No se amplía el límite jugable ni se publican assets. Cambios locales.
+
+2026-10-16 — Cadena interior del baño y entrada de f050
+IMPLEMENTADO: IsInView de FOX2 ahora evalúa el locator y área de pantalla;
+antes se rechazaba esta clase de condición y nunca arrancaba la recogida.
+Se respetan las condiciones del recurso (en f060 no requieren botón Zoom).
+IMPLEMENTADO: gc_p00_030 con modelo del jugador resuelto por parts, cámara,
+visibilidad de brazos, sonido y encendido de linterna; gc_p01_050 cierra,
+gc_p01_090 acompaña la inspección del bebé, gc_p01_020 responde al espejo,
+gc_p01_022 reabre al avanzar hacia la puerta. ShPlayer recibe bloqueo de
+movimiento y PadEnable lo libera. Baby/Baby3 usan el modelo, GANI y sonido
+espacial originales con paleta independiente de CeilLamp.
+AMPLIADO hasta entrada f050: la salida animada gc_p00_010 conserva su cadena
+nativa, publica checkpoint f050 y este vuelve a cargar con PhotoWord intacto.
+La salida de f050 sigue bloqueada: XMark/repeticiones de retrato no están
+integrados. GetLoopCount expone la primera visita (1); no se habilitan aún
+repeticiones de f050 ni se declaran implementadas las fases posteriores.
+SOMBRAS: los focos utilizan dirección, cono de sombra e innerRange originales
+como frustum/recorte próximo, en lugar de seis cámaras de luz puntual. Se
+conservan los casters del escenario. Prueba matemática del recorte aprobada;
+no se declara iluminación visualmente igualada sin nueva comparación GPU.
+VALIDADO: cadena f060→f050 y recarga f050 con recursos locales; mirada errónea
+no recoge linterna, bloqueo se libera, comandos consumidos, instancias limpias.
+La prueba usa posiciones de recorrido y no certifica colisión continua dentro
+del baño, píxeles GPU ni mezcla audible. Build WASM/Vite y typecheck correctos.
+PENDIENTE de fidelidad f060: máscara/pose de mano y seguimiento del haz de
+linterna (actualmente parte de cámara), interpolación de lente/DOF y exposición,
+comparación visual de brazos/bebé y sombras inferiores. No llamar f060 100%.
+SIGUIENTE: verificación visual aislada del baño y después interacción XMark,
+repeticiones y salida de f050 según registro; mantener guardados existentes.
+
+2026-10-16 — XMark del retrato: interacción y persistencia
+IMPLEMENTADO Y PROBADO: en f050, dentro de trap_x_mark, mirar el retrato y
+pulsar E/X/Enter/Espacio o clic izquierdo activa XMark (4→8). No requiere
+fragmentos de Photo ni mantener zoom. Se intercambian XMarkInit/XMark por
+XMarkPic1 y se muestran XMarkText/XMarkText1. Evento A5FDFC86 una vez y
+F27DAC95 a los tres segundos de reloj de audio activo. Zoom sobre el texto
+revelado solicita caption 4AF4F3D4 de la tabla original del idioma seleccionado.
+Guardado: xmarkWord opcional, compatible con partidas antiguas; la solución
+se restaura sin borrar PhotoWord. Reiniciar explícitamente vuelve a inicio.
+Clearf050: puente a ShGameControllerMessageScript con filtros originales de
+habilitación y floor. En primera visita el listener está deshabilitado y la
+puerta del vestíbulo ya está abierta; no se fuerza otra apertura artificial.
+VALIDADO: tests/xmark.test.ts (mirada errónea, fuera del trigger, pulsación,
+sonido una sola vez, texto por zoom, variantes, guardado/recarga/reinicio),
+world-photo y f060→f050. Verificación lógica con archivo local, no visual GPU.
+LÍMITE ACTUAL: f050 con retrato resoluble; f070 NO habilitada. La puerta de
+escaleras conserva colisión. Repeticiones f050/GetLoopCount y persecución de
+Lisa siguen pendientes. XMarkPicEf cambia su visibilidad nativa, pero su
+presentación VFX GPU no está certificada. No declarar f050 completa.
+SIGUIENTE BLOQUEO CONCRETO: gc_p04_120 (f070), frame127, exige el efecto
+/Assets/sh/effect/vfx_data/dust/fx_sh_dstgls01_s1.vfx. El reproductor de demos
+solo admite efectos sonoros; falta enlazar simulación y dibujo VFX de demos.
+Además gc_p04_280 declara HM_och0_main0_def sin pista: omitir solo metadatos
+no referenciados por eventos, sin ocultar modelos realmente necesarios; su
+functor 62B47A5B81EC debe retirar la instancia del efecto. Las pruebas de
+investigación detectaron ambos casos; no se han omitido para pasar de fase.
+PRUEBA MANUAL: recargar cliente actualizado conservando partida f050; buscar
+el retrato marcado cerca de la radio, acercarse, centrarlo y pulsar E una vez.
+Comprobar cambio del retrato y dos cues (inmediato y +3s); mirar el texto que
+aparece y usar botón derecho para leerlo. Salir/cargar: retrato resuelto y
+fragmentos conservados. No reiniciar para esta prueba. La escalera todavía
+marca el límite de implementación, no una acción adicional del jugador.
+
+2026-10-16 — avance verificado hasta f070 (sustituye el límite anterior f050)
+Salida animada f050→f070 habilitada tras XMark; gc_p04_120/280, Lisa de ventana,
+cristales nativos, retirada de efectos y checkpoint f070 integrados. Pruebas
+f060/f070/demo-actors: 3/3; GPU aislada de cristales: 30 frames y tres ciclos
+sin errores. Pendiente comparación audiovisual en escena y perfil de FPS.
+Detalle, evidencia y pasos manuales: REGISTRO-EVENTOS.txt, última entrada.
+Próximo bloque obligatorio: Freezer de f080 (CallSound, hueso CNP_FRZ_INNER,
+voz de bebé), radio, luces y salida. gc_p02_520 aislada pasa, pero no cubre
+estos eventos. Mantener f080 bloqueada hasta completar/validar ese recorrido;
+luego integrar Hello f090. Repetición f050 sin resolver sigue pendiente.

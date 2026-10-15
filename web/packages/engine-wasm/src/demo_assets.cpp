@@ -8,6 +8,16 @@
 #include <sstream>
 #include <iomanip>
 extern "C" {
+EMSCRIPTEN_KEEPALIVE const char* model_parts_json(const uint8_t* bytes,int size){
+ static std::string result;pt::fox2::DataSetFile f;
+ if(size<=0||!f.Load("model.parts",{bytes,size_t(size)}))return nullptr;
+ for(const auto& e:f.Entities())if(e.class_name=="ModelDescription"){
+ std::ostringstream out;out<<"{\"modelFile\":"<<std::quoted(f.GetString(e,"modelFile"))<<",\"hidden\":[";
+ const auto* p=f.FindProperty(e,"invisibleMeshNames");
+ for(size_t i=0;p&&i<p->Count();i++){if(i)out<<",";out<<std::quoted(f.ElementString(*p,i));}
+ out<<"]}";result=out.str();return result.c_str();}return nullptr;
+}
+
 EMSCRIPTEN_KEEPALIVE const char* demo_assets_json(const uint8_t* bytes,int size){
  static std::string result;pt::fox2::DataSetFile f;
  if(size<=0||size>32*1024*1024||!f.Load("demo",{bytes,size_t(size)}))return nullptr;

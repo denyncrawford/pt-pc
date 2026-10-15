@@ -9,9 +9,9 @@ export async function serveAsset(
   id: string | null,
 ): Promise<Response> {
   const name = path.slice(7);
-  if (!assetNames.has(name) || !id) return error('Archivo no encontrado.', 404);
+  if (!assetNames.has(name) || !id) return error('File not found.', 404);
   const file = Bun.file(join(root, id, name));
-  if (!(await file.exists())) return error('Archivo no encontrado.', 404);
+  if (!(await file.exists())) return error('File not found.', 404);
   const etag = '"' + id + '-' + name + '"';
   if (
     request.headers.has('if-match') &&

@@ -22,9 +22,9 @@ export function createApp(options: AppOptions) {
     const url = options.serverUrl();
     const origin = request.headers.get('origin');
     if (request.headers.get('host') !== url.host || (origin && origin !== url.origin)) {
-      return error('Origen no permitido.', 403);
+      return error('Origin not allowed.', 403);
     }
-    if (!new URL(request.url).pathname.startsWith(prefix)) return error('No encontrado.', 404);
+    if (!new URL(request.url).pathname.startsWith(prefix)) return error('Not found.', 404);
     await next();
   });
   app.get(prefix + 'api/status', () =>
@@ -48,20 +48,20 @@ export function createApp(options: AppOptions) {
   app.on(['GET', 'HEAD'], prefix + '*', (c) => {
     const path = new URL(c.req.url).pathname.slice(prefix.length);
     const resource = resolveResource(path || 'index.html');
-    if (!resource) return error('No encontrado.', 404);
+    if (!resource) return error('Not found.', 404);
     return new Response(c.req.method === 'HEAD' ? null : Bun.file(resource.path), {
       headers: { ...headers, 'Content-Type': resource.mime },
     });
   });
   app.notFound((c) =>
     error(
-      ['GET', 'HEAD'].includes(c.req.method) ? 'No encontrado.' : 'Método no permitido.',
+      ['GET', 'HEAD'].includes(c.req.method) ? 'Not found.' : 'Method not allowed.',
       ['GET', 'HEAD'].includes(c.req.method) ? 404 : 405,
     ),
   );
   app.onError((e) => {
     console.error(e.message);
-    return error('Error del servidor.', 500);
+    return error('Server error.', 500);
   });
   return app;
 }
