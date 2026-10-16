@@ -3,6 +3,7 @@ import { resolve, basename } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import tailwindcss from '@tailwindcss/vite';
+import { fingerprintRuntime } from './scripts/runtime-fingerprint.ts';
 const client = import.meta.dirname;
 const source = resolve(client, 'src');
 const names = readdirSync(source, { recursive: true })
@@ -25,7 +26,7 @@ const modules = new Map(
 );
 export default defineConfig({
   root: client,
-  publicDir: resolve(client, '../../packages/engine-wasm/dist'),
+  publicDir: false,
   define: { 'process.env.NODE_ENV': JSON.stringify('production') },
   plugins: [
     {
@@ -82,6 +83,31 @@ export default defineConfig({
         options.jsc.transform.reactCompiler = true;
       },
     }),
+    {
+      name: 'fingerprint-runtime',
+      enforce: 'post',
+      generateBundle: {
+        order: 'post',
+        handler(_options, bundle) {
+          const encoder = new TextEncoder();
+          const files = new Map<string, Uint8Array>();
+          for (const [name, item] of Object.entries(bundle)) {
+            const content = item.type === 'chunk' ? item.code : item.source;
+            files.set(name, typeof content === 'string' ? encoder.encode(content) : content);
+          }
+          for (const name of ['geometry.js', 'geometry.wasm', 'audio-core.js', 'audio-core.wasm']) {
+            files.set(name, readFileSync(resolve(client, '../../packages/engine-wasm/dist', name)));
+          }
+          const result = fingerprintRuntime(files);
+          for (const name of result.renamed.keys()) delete bundle[name];
+          for (const [fileName, source] of result.files) {
+            const existing = bundle[fileName];
+            if (existing?.type === 'asset') existing.source = source;
+            else this.emitFile({ type: 'asset', fileName, source });
+          }
+        },
+      },
+    },
   ],
   build: {
     outDir: 'dist',

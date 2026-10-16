@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 test('worklet releases locator sounds with original stop policy and replays only water drops', () => {
   let Processor;
@@ -37,9 +37,13 @@ test('worklet releases locator sounds with original stop policy and replays only
     console,
     Math,
   };
+  const worklet = readdirSync(new URL('../dist/', import.meta.url)).find((name) =>
+    /^audio-worklet-[a-f0-9]+\.js$/.test(name),
+  );
+  assert.ok(worklet, 'Build the client before testing the worklet');
   runInNewContext(
-    readFileSync(new URL('../dist/audio-worklet.js', import.meta.url), 'utf8').replace(
-      /import\s+\w+\s+from\s*['"]\.\/audio-core\.js['"];?/,
+    readFileSync(new URL(`../dist/${worklet}`, import.meta.url), 'utf8').replace(
+      /import\s+\w+\s+from\s*['"]\.\/audio-core-[a-f0-9]+\.js['"];?/,
       '',
     ),
     context,

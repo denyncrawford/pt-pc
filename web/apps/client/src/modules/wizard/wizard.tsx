@@ -21,7 +21,24 @@ export function WizardView({
     >
       <div className="text-xs tracking-[0.18em] text-[#b6c1b6]">P.T. / WEB</div>
       <p className="order-10 mt-12 text-xs tracking-[0.06em] text-[#a6aaa7]">
-        by denyncrawford and LoreanXavier
+        by{' '}
+        <a
+          href="https://github.com/denyncrawford"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-4 hover:text-white focus-visible:outline"
+        >
+          denyncrawford
+        </a>{' '}
+        and LoreanXavier
+        <a
+          href="https://github.com/denyncrawford/pt-pc"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 block underline underline-offset-4 hover:text-white focus-visible:outline"
+        >
+          View source on GitHub
+        </a>
       </p>
       <h1 className="my-4 text-[clamp(32px,6vw,52px)] font-light tracking-[0.05em]">
         {loading ? state.title : state.error ? 'Could not start' : 'P.T.'}
@@ -39,6 +56,12 @@ export function WizardView({
           <p className="mt-3 text-xs leading-relaxed text-[#aaa]">
             Not affiliated with or endorsed by Konami. Game content and trademarks belong to their
             respective owners.
+          </p>
+          <p className="mt-4 text-sm leading-relaxed text-[#aaa]">
+            Hardware notice: this experimental port requires a WebGPU-compatible browser and GPU, a
+            capable CPU, and sufficient memory. Software rendering may be extremely slow. On
+            unsupported or underpowered systems, the game may freeze or crash your browser and can
+            make your computer unresponsive. Save other work before playing.
           </p>
           {storageNotice && (
             <p role="status" className="mt-3 text-sm text-[#aaa]">

@@ -19,9 +19,19 @@ build locally or in CI and deploy the resulting folder. No server secrets, uploa
 service, Docker image or persistent volume is required.
 
 Serve `.wasm` as `application/wasm` and JavaScript as JavaScript. Preserve all emitted
-files and their relative names; do not rewrite module requests to index.html. Avoid
-long immutable caching of stable JS filenames: deploy complete builds atomically
-and revalidate HTML/JS so browsers do not mix versions. This app has no route rewrites.
+files and their relative names; do not rewrite module requests to index.html.
+JS, CSS and WASM filenames carry a content-derived fingerprint of the complete
+runtime graph. Changing any runtime file changes the graph's filenames, including
+workers and WASM loaders. The build rewrites HTML and module references together.
+This deliberately invalidates the whole runtime rather than individual chunks.
+
+Deploy complete builds atomically. Serve `index.html` with `Cache-Control: no-cache`
+so clients revalidate it; fingerprinted assets can use long immutable caching.
+Purge previously cached HTML and legacy unversioned files when rolling out this
+change, then hard-refresh existing browser tabs. Hashing does not purge existing
+browser/CDN caches or force already-open tabs to update. Retain prior fingerprinted
+assets during deployments if old tabs need to keep loading lazy modules.
+This app has no route rewrites. No browser library/save keys change between builds.
 HTTPS is needed for WebGPU/OPFS outside localhost. The user's GPU runs the game.
 
 ## User flow
