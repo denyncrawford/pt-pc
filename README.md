@@ -165,6 +165,16 @@ executable.
 
 ## Web port — development in progress
 
+[Play the web demo](https://k51qzi5uqu5dimy1cx4xaddd75dx3ryxigjrc6agbp8aj0sd6asfyx1w2dl5qy.ipns.dweb.link/)
+
+The demo is published on **IPFS**, with an **IPNS** address that points to the
+current release so the same link can receive updates. Distributed hosting reduces
+dependence on a single server, but does not guarantee permanent availability or
+immunity from takedowns: content must remain pinned and available, IPNS records
+must be renewed, and individual gateways can restrict access. See
+[IPFS persistence](https://docs.ipfs.tech/concepts/persistence/) and
+[IPNS](https://docs.ipfs.tech/concepts/ipns/).
+
 **Bring your own copy.** This unofficial web demo does not include, host or distribute
 P.T., PKG files, extracted game assets, or links to download the game. You must
 provide your own lawfully obtained copy and have the necessary rights to use it.
