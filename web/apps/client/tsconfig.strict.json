@@ -8,7 +8,6 @@
     "src/modules/settings/options.ts",
     "src/modules/settings/web-settings.tsx",
     "src/modules/wizard/wizard.tsx",
-    "src/services/remote-archive.ts",
     "src/modules/gameplay/stage-cycle.ts",
     "src/modules/renderer/gpu-resources.ts",
     "src/lib/archives.ts",
@@ -16,6 +15,7 @@
     "src/hooks/**/*.ts",
     "src/components/**/*.tsx",
     "src/modules/renderer/renderer-elements.ts",
-    "src/modules/gameplay/save-game.ts"
+    "src/modules/gameplay/save-game.ts",
+    "src/modules/library/**/*.ts"
   ]
 }

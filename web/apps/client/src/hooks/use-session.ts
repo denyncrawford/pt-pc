@@ -1,6 +1,7 @@
+import { importPackage } from '../modules/library/pkg-import';
+import { openLocalLibrary, importLocalLibrary } from '../modules/library/local-library';
 import { SaveGameStore, type Checkpoint } from '../modules/gameplay/save-game';
 import { useEffect, useRef, useState } from 'react';
-import { remoteArchive } from '../services/remote-archive';
 import { control } from '../modules/renderer/renderer-elements';
 import {
   brightnessIndex,
@@ -15,6 +16,7 @@ export type WizardState =
   | { kind: 'loading'; title: string; done?: number; total?: number }
   | { kind: 'playing' };
 export function useSession(loadEngine: RuntimeLoader) {
+  const [storageNotice, setStorageNotice] = useState('');
   const [wizard, setWizard] = useState<WizardState>({ kind: 'choose', ready: false });
   const [options, setOptions] = useState<GameOptions>(() => {
     try {
@@ -58,29 +60,6 @@ export function useSession(loadEngine: RuntimeLoader) {
     }
     return runtime.current;
   }
-  function upload(file: File) {
-    return new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', new URL('api/pkg', location.href));
-      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable)
-          setWizard({
-            kind: 'loading',
-            title: 'Loading your copy',
-            done: e.loaded,
-            total: e.total,
-          });
-      };
-      xhr.upload.onload = () => setWizard({ kind: 'loading', title: 'Preparing your copy' });
-      xhr.onerror = () => reject(new Error('The connection was lost. Please try again.'));
-      xhr.onload = () =>
-        xhr.status >= 200 && xhr.status < 300
-          ? resolve()
-          : reject(new Error('Could not prepare this copy. Please try again.'));
-      xhr.send(file);
-    });
-  }
   const [saveError, setSaveError] = useState<string | null>(null);
   const pendingSave = useRef<Checkpoint | null>(null);
   const saves = useRef<SaveGameStore | null>(null);
@@ -97,19 +76,16 @@ export function useSession(loadEngine: RuntimeLoader) {
       setSaveError(errorMessage(e));
     }
   }
-  async function start(file?: File) {
+  async function start() {
     if (busy.current) return;
     busy.current = true;
     try {
       const checkpoint = saveStore().read() ?? undefined;
-      if (file) {
-        setWizard({ kind: 'loading', title: 'Loading your copy' });
-        await upload(file);
-      }
       setWizard({ kind: 'loading', title: 'Loading game', done: 0, total: 7 });
       const game = await loadRuntime();
-      const archive = await remoteArchive(location.href),
-        textures = await remoteArchive(location.href, 'texture.qar');
+      const local = await openLocalLibrary();
+      if (!local) throw new Error('Import your copy first.');
+      const { archive, textures } = local;
       const loaded = await game.loadWalk(
         archive,
         textures,
@@ -209,10 +185,9 @@ export function useSession(loadEngine: RuntimeLoader) {
   }
   useEffect(() => {
     let active = true;
-    fetch(new URL('api/status', location.href))
-      .then(async (response) => {
-        if (!response.ok) throw Error();
-        const data: unknown = await response.json();
+    openLocalLibrary()
+      .then((local) => ({ state: local ? 'ready' : 'empty' }))
+      .then((data: unknown) => {
         if (active && !busy.current)
           setWizard({
             kind: 'choose',
@@ -223,12 +198,12 @@ export function useSession(loadEngine: RuntimeLoader) {
               data.state === 'ready',
           });
       })
-      .catch(() => {
+      .catch((cause: unknown) => {
         if (active && !busy.current)
           setWizard({
             kind: 'choose',
             ready: false,
-            error: 'Could not connect. Reload the page.',
+            error: errorMessage(cause),
           });
       });
     return () => {
@@ -273,7 +248,48 @@ export function useSession(loadEngine: RuntimeLoader) {
       control('menu-error').textContent = 'Fullscreen unavailable: ' + errorMessage(e);
     }
   }
+  const importController = useRef<AbortController | null>(null);
+  async function importFiles(files: readonly File[]) {
+    if (busy.current) return;
+    busy.current = true;
+    const controller = new AbortController();
+    importController.current = controller;
+    const pkg = files.length === 1 && files[0]?.name.toLowerCase().endsWith('.pkg');
+    setWizard({
+      kind: 'loading',
+      title: pkg ? 'Extracting your copy on this device' : 'Saving files on this device',
+    });
+    try {
+      const progress = (done: number, total: number) =>
+        setWizard({
+          kind: 'loading',
+          title: pkg ? 'Extracting your copy on this device' : 'Saving files on this device',
+          done,
+          total,
+        });
+      const result = pkg
+        ? await importPackage(files[0]!, progress, controller.signal)
+        : await importLocalLibrary(files, progress, controller.signal);
+      setStorageNotice(
+        result.persisted
+          ? 'Saved on this device. Clearing site data removes this library.'
+          : 'Saved on this device. The browser may reclaim this storage; keep your original files.',
+      );
+      setWizard({ kind: 'choose', ready: true });
+    } catch (cause) {
+      const ready = await openLocalLibrary()
+        .then(Boolean)
+        .catch(() => false);
+      setWizard({ kind: 'choose', ready, error: errorMessage(cause) });
+    } finally {
+      importController.current = null;
+      busy.current = false;
+    }
+  }
   return {
+    cancelImport: () => importController.current?.abort(),
+    storageNotice,
+    importFiles,
     wizard,
     saveError,
     retrySave: () => {

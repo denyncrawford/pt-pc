@@ -4,15 +4,16 @@
   "type": "module",
   "packageManager": "bun@1.4.3",
   "scripts": {
-    "dev": "bun run --cwd web/apps/server dev",
-    "test": "bun test --timeout 120000 web/apps/server/tests/*.test.ts web/apps/client/tests",
+    "dev": "bun run --cwd web/apps/client dev",
+    "test": "bun test --timeout 120000 web/apps/client/tests web/packages/pkg-extractor/tests",
     "build:wasm": "bun run --cwd web/packages/engine-wasm build",
     "build": "bun run --cwd web/apps/client build",
-    "typecheck": "bun run --cwd web/apps/client typecheck && bun run --cwd web/apps/server typecheck",
+    "typecheck": "bun run --cwd web/apps/client typecheck && bun run --cwd web/packages/pkg-extractor typecheck",
     "audit:publication": "python3 tools/web/audit-publication.py",
     "fmt": "prettier --write web",
     "fmt:check": "prettier --check web",
-    "test:gameplay": "bun web/apps/client/scripts/test-gameplay.ts"
+    "test:gameplay": "bun web/apps/client/scripts/test-gameplay.ts",
+    "preview": "bun run --cwd web/apps/client preview"
   },
   "workspaces": [
     "web/apps/*",

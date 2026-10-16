@@ -165,40 +165,47 @@ executable.
 
 ## Web port — development in progress
 
-This fork develops a browser adaptation of LoreanXavier's native P.T. PC port.
-The web version uses **React/TypeScript, WebGPU and a C++ engine compiled to WASM**,
-with a **Bun + Hono backend** for PKG import and resource delivery. Both apps are
-intended to ship in one self-hosted container. Rendering and audio run on the
-player's device, not on the hosting server.
+**Bring your own copy.** This unofficial web demo does not include, host or distribute
+P.T., PKG files, extracted game assets, or links to download the game. You must
+provide your own lawfully obtained copy and have the necessary rights to use it.
+Your game files are processed and stored locally in your browser; they are never
+uploaded to the demo host. This project is not affiliated with or endorsed by
+Konami. Game content and trademarks belong to their respective owners. The
+project's software license does not grant any rights to the original game content.
 
-**Work in progress — not the complete native game.** As of 2026-10-16, the web
-playable boundary is **f070**, after the bathroom and XMark portrait stages.
-The route to f080 and the remaining loops/ending are not yet enabled. Gameplay
-work is temporarily paused to prepare distribution. See the
-[checkpoint and roadmap](web/docs/ROADMAP.txt) and [event register](web/docs/REGISTRO-EVENTOS.txt).
+The browser port is a **static site** using React, TypeScript, WebGPU and WASM.
+Import your own compatible fPKG: extraction happens in a browser Worker, game files
+stay in OPFS, and progress/settings stay in localStorage. No game bytes are uploaded;
+no application backend, Docker or server storage is required. Already-extracted
+archives can also be imported. Retail console PKGs are unsupported.
 
-- [Web setup, features and current limitations](README-WEB.md)
-- [Server installation: available setup and planned Docker release](web/docs/SERVER-INSTALL.md)
-- [Distribution and release design](web/docs/DISTRIBUTION.md)
-
-There is **no published web Docker release established by these instructions**.
-The planned delivery is a code-only GHCR image plus a GitHub prerelease deployment
-kit. Native downloads described above are not installers for the browser version.
-Bring your own compatible copy; no PKG or extracted game content is included in
-web distribution. Generated application builds belong in release artifacts, not Git.
+Build with `bun install`, `bun run build:wasm` (Emscripten required), then
+`bun run build`. Deploy `web/apps/client/dist` to an HTTPS static host.
+Use `bun dev` for local development or `bun run preview` after building.
+See [web setup](README-WEB.md), [distribution](web/docs/DISTRIBUTION.md) and
+[checkpoint/roadmap](web/docs/ROADMAP.txt).
 
 ### Web limitations compared with the native port
 
-| Area          | Current web status                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Full game     | Playable boundary f070; f080 onward and ending pending.                                                                         |
-| Presentation  | Lighting, shadows, Lisa visibility and effects still require fidelity review; not all native VFX are supported.                 |
-| Performance   | Stalls around scene events/end of hallway remain under investigation; no guaranteed frame rate.                                 |
-| Saves         | Progress stored in this browser/origin; no server or cross-device sync, no native-save import.                                  |
-| Hardware      | Requires a compatible WebGPU browser/device; remote access needs HTTPS. Hosting does not replace the player's GPU.              |
-| Native extras | No claim of parity for Vulkan ray tracing, DLSS/FSR/XeSS, frame generation, photo mode, museum or advanced controller features. |
-| Hosting       | Existing launcher is local-only; Linux extraction, authentication, proxy support and resumable uploads are release blockers.    |
+The browser version is still in development and does not yet match the complete
+native game or its feature set.
 
+| Area | Current web status |
+| --- | --- |
+| Full game | Playable through f070; f080 onward and the ending remain pending. |
+| Presentation | Lighting, shadows, Lisa visibility and effects still need fidelity review; not all native VFX are supported. |
+| Performance | Stalls around scene events and the end of the hallway remain under investigation; no guaranteed frame rate. |
+| Saves | Checkpoints persist in this browser/profile/origin until explicit Restart. No cross-device sync or native-save import; unfinished events may replay from a checkpoint. |
+| Hardware | Requires a compatible WebGPU browser/device and HTTPS outside localhost. Rendering runs on the player's GPU. |
+| Native extras | No claim of parity for Vulkan ray tracing, DLSS/FSR/XeSS, frame generation, photo mode, museum or advanced controller features. |
+| Game import | Local fPKG extraction or import of three extracted archives; retail console PKGs are unsupported. Other releases/browser combinations still need validation. |
+| Storage and offline use | Browser quotas and persistence policies apply. Clearing site data removes the library and saves. Full offline application loading and safe old-library cleanup are not yet implemented. |
+| Hosting | Static HTTPS hosting only; no backend or game uploads. Complete audiovisual acceptance on hosted builds remains pending. |
+
+Distribution contains code only, never game content. Generated builds belong in
+release artifacts, not Git. The browser extractor adapts LGPL LibOrbisPkg; see its
+[notice and license](web/packages/pkg-extractor/NOTICE.md). No web release is
+published automatically.
 
 ## License
 

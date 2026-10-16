@@ -1,3 +1,7 @@
+2026-10-16: Distribución actual: sitio estático, extractor fPKG en Worker, OPFS y
+localStorage. El backend/Docker se retiró. Checkpoint jugable f070 sin cambios;
+continuar f080. Ver encabezado de ROADMAP.txt; planes anteriores son históricos.
+
 CHECKPOINT VIGENTE — 2026-10-16 — JUGABILIDAD PAUSADA POR EL USUARIO
 Prioridad activa: diseño de distribución privada/self-hosted y documentación.
 No avanzar loops mientras se trabaja en este hito. No commits/push automáticos.
@@ -19,7 +23,7 @@ CNP_FRZ_INNER, modelo/movimiento, radio Play_radio_voice_04 y luces ID51/50;
 validar secuencia/salida y guardado antes de abrir frontera. Luego Hello f090,
 f100, Peephole f110, falso error f120, TrueEnd f160 y ending.
 Fuente detallada: REGISTRO-EVENTOS.txt. Distribución: DISTRIBUTION.md y
-SERVER-INSTALL.md. Este bloque prevalece sobre estados históricos de abajo.
+DISTRIBUTION.md. Este bloque prevalece sobre estados históricos de abajo.
 
 PLAN DE IMPLEMENTACIÓN — CONTINUIDAD Y RENDIMIENTO
 Actualizado: 2026-10-14

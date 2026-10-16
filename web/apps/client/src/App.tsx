@@ -12,7 +12,13 @@ export function App({ loadRuntime }: { loadRuntime: RuntimeLoader }) {
         (session.development ? 'bg-[#101512] text-[#edf1e9]' : 'bg-[#050606] text-[#eee]')
       }
     >
-      <WizardView state={session.wizard} start={session.start} />
+      <WizardView
+        state={session.wizard}
+        start={session.start}
+        cancelImport={session.cancelImport}
+        importFiles={session.importFiles}
+        storageNotice={session.storageNotice}
+      />
       <GameViewport session={session} />
       <PauseMenu session={session} />
       <RestartConfirmation session={session} />
@@ -22,7 +28,7 @@ export function App({ loadRuntime }: { loadRuntime: RuntimeLoader }) {
             onClick={session.begin}
             className="rounded-xs border border-[#888] bg-[#111] px-12 py-[18px] text-white"
           >
-            Comenzar
+            Start
           </button>
         </div>
       )}

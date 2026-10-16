@@ -1,125 +1,93 @@
 # P.T. Web port
 
-Bun server, React/TypeScript browser UI, WebGPU rendering and the shared C++ engine
-compiled to WASM. This is an incomplete gameplay port. No PKG or extracted game
-assets are included; use your own local copy through the wizard.
+A static React/TypeScript application with WebGPU rendering and the shared C++
+engine compiled to WASM. There is **no application backend**. The browser extracts
+your own compatible fPKG in a Worker, stores the three archives in OPFS, and saves
+progress/settings in localStorage. No game content is uploaded or distributed.
+
+**Bring your own copy.** This unofficial web demo does not include, host or distribute
+P.T., PKG files, extracted game assets, or links to download the game. You must
+provide your own lawfully obtained copy and have the necessary rights to use it.
+Your game files are processed and stored locally in your browser; they are never
+uploaded to the demo host. This project is not affiliated with or endorsed by
+Konami. Game content and trademarks belong to their respective owners. The
+project's software license does not grant any rights to the original game content.
 
 ## Development
 
-With the WASM modules and extraction helper prepared:
+Install Bun and the Emscripten SDK, then from the repository root:
 
 ```sh
-bun install --frozen-lockfile
+bun install
+bun run build:wasm
 bun dev
 ```
 
-Bun invokes Vite with SWC and React Compiler to build the browser modules, opens the local wizard and reuses an
-existing `.data/` library. Keep the terminal open; Ctrl+C stops the server.
-`bun dev --no-browser` prints the URL without opening a browser.
+Open http://127.0.0.1:3000. Vite rebuilds when source files change; reload the page
+after a completed build. This watches emitted engine modules rather than using HMR.
+Choose **Import your copy** and select your fPKG, or select `chunk1.psarc`,
+`texture.qar` and `pathid_list_ps4.bin` together from your existing extraction.
+A retail PlayStation Store package is not supported. Keep your original files.
 
-For a fresh checkout, put Emscripten on PATH (tested with 6.0.12), then run
-`bun run build:wasm`. GLM, Lua and audio codebooks are downloaded with checksum
-verification. The .NET 10 helper build script is `tools/macos/build_local_extractor.sh`;
-its multi-file output needs packaging before use with the current launcher. See
-[helper requirements and installation](web/docs/SERVER-INSTALL.md).
-The HTTP server is Bun; .NET is used only by the helper during import.
+For a production build and a local preview:
 
-## Layout
+```sh
+bun run build
+bun run preview
+```
 
-- `web/apps/client/src/`: feature `modules`, archive `lib`, remote `services`, and `types`.
-- `web/apps/server/src/`: Bun entrypoint, `routes`, `services`, `http` and `lib`.
-- `web/packages/engine-wasm/src/`: C/C++ bridges to the native engine in `src/`.
-- `web/apps/client/dist/` and `web/packages/engine-wasm/dist/`: generated outputs, ignored by Git.
-- `web/apps/client/vite.config.ts`: Vite/SWC/React Compiler configuration.
-- `web/apps/client/scripts/build.ts`: Vite build entry; `web/packages/engine-wasm/scripts/build*.sh`: separate WASM builds.
-- `.data/` and `.cache/`: private local libraries and build/helper dependencies.
+Preview opens at http://127.0.0.1:4175. Build the WASM first if it is missing.
+Deploy `web/apps/client/dist` to any HTTPS static host. See
+[distribution](web/docs/DISTRIBUTION.md). Neither Docker, .NET, Bun nor a persistent
+server volume is required **on the hosting service**. Bun/Emscripten are build tools.
 
-The client is built before the Bun server starts; this command does not currently
-run a separate Vite HMR server. Reload/restart after source edits. Stable module
-URLs preserve session-scoped asset streaming and audio-worklet loading.
-The pinned SWC plugin exposes React Compiler through its documented advanced
-options hook; the bundle test verifies compilation of both React views.
+## Storage and progress
+
+Files stay in OPFS; progress and options stay in localStorage. Reloading, leaving
+and re-entering resumes the saved checkpoint. Only the explicit **Restart** action
+resets progress. Importing a library does not reset it. Saves are checkpoints, not
+snapshots of every animation frame; an unfinished event may replay after reload.
+
+Storage is specific to the origin and browser profile. Ports 3000 and 4175 have
+separate libraries/saves. Keep the same deployed domain. Clearing site data deletes
+both files and saves; private browsing and quota policies can restrict persistence.
+There is no cross-device synchronization or guaranteed offline app loading.
+
+## Workspace
+
+- `web/apps/client`: React UI, gameplay/rendering, local library and extractor Worker.
+- `web/packages/pkg-extractor`: typed, bounded fPKG/PFS/PFSC reader; LGPL adaptation
+  of LibOrbisPkg using noble crypto and fflate, with no native runtime dependency.
+- `web/packages/engine-wasm`: Emscripten bridges to repository `src`.
+
+Each owns its package manifest. Builds are generated, ignored by Git and contain
+no game data. Original menus still render their user-provided assets on WebGPU.
 
 ## Verification
 
 ```sh
 bun run typecheck
+bun test web/packages/pkg-extractor/tests web/apps/client/tests/save-game.test.ts
 bun run build
-bun test
+bun x playwright install chromium
+bun run --cwd web/apps/client test:local
 ```
 
-Tests use synthetic fixtures by default. A built WASM core is required for native
-parser/physics tests. To run the optional private integration suite:
-
-```sh
-PT_TEST_PSARC=/path/to/chunk1.psarc PT_TEST_QAR=/path/to/texture.qar bun test --timeout 120000
-```
-
-No test assets or generated builds are checked in. `web/packages/engine-wasm/src/` is source only;
-`bun run build:wasm` is a separate native build step. `bun dev` tells you if it is missing.
-
-`bun run typecheck` checks the complete project and a strict subset with
-`noUncheckedIndexedAccess`: React components, options parsing, HTTP range transport,
-GPU allocation tracking and stage lifecycle. Those modules contain no explicit `any`.
-The renderer/WASM bridge remains permissively typed; full strict coverage is unfinished.
-React owns wizard and web-setting state. The original game menu keeps its native
-canvas renderer (including the puzzle), with an imperative adapter at that boundary.
-Browser DOM types are still needed for canvas/input/browser APIs, not as a UI framework.
-
-The web interface and original options menu use English. New installations default
-to English subtitles; existing subtitle preferences are preserved and other game
-subtitle languages remain selectable.
+Browser tests are headless and use isolated profiles. Optional `PT_TEST_PKG` and
+`PT_TEST_LIBRARY` point to private local fixtures, never committed assets. The
+large-fixture Chromium tests grant a 4 GiB test quota; users' available quotas vary.
+See [local storage details](web/docs/LOCAL-STORAGE.md) for limitations.
 
 ## Current gameplay
 
-As of 2026-10-16, the enabled route is:
-
-`f000 → f010 → f005 → f020 → f030 → f040 → f060 → f050 → f070`
-
+Enabled route: `f000 → f010 → f005 → f020 → f030 → f040 → f060 → f050 → f070`.
 The bathroom chain, flashlight, baby/mirror events, XMark portrait interaction,
 solved-portrait exit, and f070 window/Lisa/glass/breath events are integrated.
-The five world photo fragments and menu fragment share their separate puzzle
-state. Saves retain the floor, photo state and portrait state in browser storage.
-**f080 and subsequent loops/ending remain unavailable.** Unsolved f050 repeats
-and pursuit are also unfinished. Logical route tests and isolated GPU checks do
-not certify complete audiovisual fidelity. Lighting/shadows and event-related
-frame stalls remain open. Native graphics enhancements and extras are not all
-ported; do not apply the native README's feature list to the web build.
+World photo fragments and the menu fragment share their separate puzzle state.
 
-Gameplay is paused at this checkpoint while distribution is prepared. Resume
-from the Freezer events in f080, then Hello f090; see the current block at the top
-of [the roadmap](web/docs/ROADMAP.txt) and [event register](web/docs/REGISTRO-EVENTOS.txt).
-
-## Server installation and releases
-
-Follow [server installation](web/docs/SERVER-INSTALL.md) for the current source
-setup and the proposed private deployment. The current server binds to loopback;
-a ready-to-deploy Linux container is **not yet delivered**. Do not expose the
-local launcher directly to the internet.
-
-The primary delivery target is one Docker image containing Bun/Hono, the built
-React frontend, WASM modules and a validated Linux extraction helper. GHCR will
-host versioned images; GitHub prereleases will hold a deployment kit, checksums,
-license notices and matching source information. A mounted `/data` retains the
-user's imported library. Progress currently stays in the browser, not that volume.
-See [the distribution plan](web/docs/DISTRIBUTION.md) for release gates.
-
-`bun run audit:publication` audits **staged source changes** relative to the
-native baseline. It is not an audit of untracked files, an image, or a release.
-PKG files, extracted resources, private captures, caches and local outputs must
-never enter published source or images. Application JS/CSS/WASM and helper builds
-are generated from source for releases and are deliberately excluded from Git.
-Preserve upstream attribution and third-party license/source obligations.
-
-## Workspace ownership and typing
-
-Each app/package owns its package.json and build/test commands. The root commands
-coordinate the workspace. Run a client-only check with
-`bun run --cwd web/apps/client typecheck`, or backend tests with
-`bun run --cwd web/apps/server test`.
-
-The backend is checked in strict mode. Client settings, wizard, range access,
-archive parsers, stage lifecycle and GPU resource ownership also have strict
-checks with unchecked-index protection. Legacy renderer, audio and WASM ABI
-modules still contain `any`; migrating those contracts is pending. React owns
-application UI; browser/WebGPU types remain necessary for engine integration.
+**f080 and subsequent loops/ending remain unavailable.** Unsolved f050 repetition
+and pursuit, audiovisual fidelity, lighting/shadows and event-related stalls remain
+open. Native ray tracing/upscalers, advanced controller support and extras are not
+all ported. This is not the full native game. The gameplay checkpoint is unchanged;
+resume with f080 Freezer, then f090 Hello. See the [roadmap](web/docs/ROADMAP.txt)
+and [event register](web/docs/REGISTRO-EVENTOS.txt).

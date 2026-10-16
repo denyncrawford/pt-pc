@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
@@ -25,9 +25,45 @@ const modules = new Map(
 );
 export default defineConfig({
   root: client,
-  publicDir: false,
+  publicDir: resolve(client, '../../packages/engine-wasm/dist'),
   define: { 'process.env.NODE_ENV': JSON.stringify('production') },
   plugins: [
+    {
+      name: 'static-document',
+      generateBundle() {
+        const extractor = resolve(client, '../../packages/pkg-extractor');
+        this.emitFile({
+          type: 'asset',
+          fileName: 'extractor-GPL.txt',
+          source: readFileSync(resolve(extractor, 'COPYING-GPL.txt'), 'utf8'),
+        });
+        const notices = ['@noble/ciphers', '@noble/hashes', 'fflate']
+          .map(
+            (name) =>
+              name +
+              '\n' +
+              readFileSync(resolve(extractor, 'node_modules', name, 'LICENSE'), 'utf8'),
+          )
+          .join('\n\n');
+        this.emitFile({ type: 'asset', fileName: 'extractor-dependencies.txt', source: notices });
+
+        this.emitFile({
+          type: 'asset',
+          fileName: 'index.html',
+          source: readFileSync(resolve(client, 'index.html'), 'utf8'),
+        });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'extractor-LICENSE.txt',
+          source: readFileSync(resolve(client, '../../packages/pkg-extractor/LICENSE.txt'), 'utf8'),
+        });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'extractor-NOTICE.md',
+          source: readFileSync(resolve(client, '../../packages/pkg-extractor/NOTICE.md'), 'utf8'),
+        });
+      },
+    },
     tailwindcss(),
     {
       name: 'runtime-module-urls',

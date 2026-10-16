@@ -4,18 +4,16 @@ See [setup](../README-WEB.md), [roadmap](docs/ROADMAP.txt), and
 [distribution](docs/DISTRIBUTION.md).
 
 - `apps/client`: Vite + React app; source grouped under `src/modules`, `lib`, `services`, `types`.
-- `apps/server`: Bun app; `src/routes`, `services`, `http`, `lib`.
+- `packages/pkg-extractor`: typed browser-local fPKG extraction with its own package and tests.
 - `packages/engine-wasm`: C/C++ browser bridges and independent Emscripten build.
 
 Each owns a package manifest. Tests and tooling live outside application source.
 All `dist` folders are generated and excluded from Git. Native engine source stays
-in the repository-level `src`. Root `bun dev` builds the client and starts Bun.
+in repository-level `src`. Root `bun dev` watches Vite builds and serves static
+files locally; production hosting only serves `apps/client/dist`. There is no API
+backend. OPFS owns archives; localStorage owns progress and settings.
 
-## HTTP and formatting
-
-The server uses Hono for routing and middleware on Bun. `src/app.ts` builds the
-HTTP app without opening a socket; `src/main.ts` owns process startup and shutdown.
-PKG imports pass the raw request stream to the library service.
+## Formatting
 
 Run `bun run fmt` to format the web workspace with Prettier, or `bun run fmt:check`
 to verify it. This covers TypeScript/TSX, JSON, HTML and Markdown; native C/C++

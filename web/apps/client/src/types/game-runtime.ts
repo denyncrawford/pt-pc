@@ -1,6 +1,6 @@
 import type { Checkpoint } from '../modules/gameplay/save-game';
 import type { GameOptions } from '../modules/settings/options';
-import type { RangeArchive } from '../services/remote-archive';
+import type { LibrarySource } from '../modules/library/local-library';
 
 export interface MenuOptions extends GameOptions {
   brightnessIndex: number;
@@ -18,8 +18,8 @@ export interface GameRuntime {
   setMenuPaused(paused: boolean): void;
   unloadWalk(): Promise<void>;
   loadWalk(
-    archive: RangeArchive,
-    textures: RangeArchive,
+    archive: LibrarySource,
+    textures: LibrarySource,
     progress: (done: number, total: number) => void,
     scene: 'start' | 'hallway',
     checkpoint?: Checkpoint,
@@ -27,8 +27,8 @@ export interface GameRuntime {
   ): Promise<boolean>;
   createOriginalMenu(
     canvas: HTMLCanvasElement,
-    archive: RangeArchive,
-    textures: RangeArchive,
+    archive: LibrarySource,
+    textures: LibrarySource,
     onAction: (action: string, value: unknown) => void,
   ): Promise<OriginalMenu>;
 }

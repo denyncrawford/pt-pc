@@ -1,3 +1,72 @@
+2026-10-16 — DISTRIBUTION: STATIC CLIENT + LOCAL FPKG EXTRACTION
+Supersedes prior Docker/server plans below. Removed web/apps/server, Docker/Compose/
+Render service definitions, HTTP archive path and native WebExtract helper. Native
+PC installers and private .data files are preserved. Build output is a static site.
+A strict TypeScript package adapts LibOrbisPkg fPKG/PFS/PFSC reads to a dedicated
+browser Worker with bounded caches, noble crypto and fflate. Direct PKG selection
+extracts into transactional OPFS; cancellation/errors preserve the previous library.
+Retail PKGs unsupported; signatures/digests are not comprehensively authenticated.
+Validated private US PKG: all three complete SHA-256 hashes match native extraction.
+Chromium headless: real Worker extraction + reload + hallway geometry/collision
+passed without backend requests (36s in the test environment). Synthetic import,
+cancellation and save persistence checks passed; 4 browser passes, 1 optional
+separate-library test skipped. Large test uses a 4 GiB quota override. Eight focused
+extractor/save tests pass, including independent OpenSSL XTS vectors and malformed
+input. LocalStorage save format/backup keys unchanged; only explicit Restart resets.
+Remaining: other browsers, normal-profile restart, full audiovisual route acceptance,
+safe generation cleanup/library deletion, save export/import, static release ZIP/CI.
+Docs: README-WEB.md, DISTRIBUTION.md, LOCAL-STORAGE.md. Gameplay unchanged at f070;
+f080 Freezer then f090 Hello remain next. No commits/pushes/releases/deployment.
+
+2026-10-16 — DISTRIBUTION: OPFS STATIC PROOF OF CONCEPT
+Opt-in build:static produces a code-only site with WASM; the React launcher imports
+three extracted archives into browser OPFS, selects local File access and avoids
+server API/assets requests. Existing server/Docker mode remains available.
+Validated: client normal + strict typechecks; static build; two synthetic headless
+Chromium tests (reload persistence, chunk reads, invalid replacement, cancellation)
+and a private real-library test (~1.2 GiB) loading hallway geometry/collisions from
+OPFS after reload, without API/asset requests. Tests ran locally in Docker without
+controlling the desktop. Initial private-profile quota failure reproduced; real
+fixture test passed with explicit 4 GiB CDP quota. Not a user quota guarantee.
+NOT validated yet: full visual/audio gameplay through static mode, other browsers,
+normal-profile relaunch, power-loss recovery. No offline app cache. Old generations
+remain until safe cleanup is implemented. No direct browser PKG extraction yet:
+.NET browser compatibility probe flags AesManaged/RSA.Create; random-access I/O and
+crypto need adaptation in a Worker before backend extraction can be removed.
+Next: browser extractor + matching output hashes, then full gameplay acceptance
+and storage cleanup. See LOCAL-STORAGE.md. Gameplay checkpoint unchanged f070,
+f080 pending. No commits, pushes, deployment or asset publication.
+
+2026-10-16 — DISTRIBUTION: DOCKER + RENDER SOURCE DEPLOYMENT
+Source-build Dockerfile (pinned tool images), Compose and Render Blueprint added.
+Server supports public HTTPS origin, PORT, /data, private HTTP Basic authentication
+and a public minimal /healthz. No game assets included in build context/image.
+Linux amd64 image built from source under emulation. Synthetic acceptance passed:
+private UI/API/assets, origin isolation, WASM, PKG import, ranges, failed replacement,
+restart, SIGKILL recovery, uid10001 and cleanup. Backend 16 tests + typecheck pass.
+Remaining: actual Render multi-GiB upload and gameplay acceptance, resumable uploads,
+quotas/old-library retirement, publication/license audit. No remote service created,
+no image published, no commits/pushes. Instructions: SERVER-INSTALL.md.
+Game checkpoint unchanged: f070; next f080. Gameplay work remains paused.
+
+2026-10-16 — DISTRIBUTION: IMPORT RECOVERY AND HOST LOCKING
+Journaled partial imports cleaned on startup; committed libraries preserved.
+Graceful stop cancels stalled uploads and waits for extractor/import cleanup.
+Invalid library metadata blocks imports/recovery. Kernel flock replaces stale PID
+locks; extraction child retains lock if parent dies. macOS lifecycle tests pass.
+Linux host/container validation, storage quotas/deletion, private hosting and full
+Docker image still pending. No power-loss durability claim. Gameplay remains f070;
+f080 blocked. No commit/push/publication.
+
+2026-10-16 — DISTRIBUTION: PORTABLE EXTRACTOR IMPLEMENTED
+PT.WebExtract reuses native extraction; Linux ARM64 and emulated x64 runtime-only
+container tests pass. Real private PKG extracted on ARM64: all three SHA-256 hashes
+match the current library. No assets embedded in images or source. Server now
+executes the complete helper directory in place instead of copying one executable.
+New regressions cover runtime sidecars and preserving the old library on failure.
+Next: storage recovery, private hosting/auth/proxy settings and full Docker image.
+Game checkpoint unchanged: f070; f080 blocked. No commit/push/publication.
+
 CHECKPOINT VIGENTE — 2026-10-16 — JUGABILIDAD PAUSADA POR EL USUARIO
 Prioridad activa: diseño de distribución privada/self-hosted y documentación.
 No avanzar loops mientras se trabaja en este hito. No commits/push automáticos.

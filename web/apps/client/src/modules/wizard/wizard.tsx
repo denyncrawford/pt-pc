@@ -2,9 +2,15 @@ import type { WizardState } from '../../hooks/use-session';
 export function WizardView({
   state,
   start,
+  cancelImport,
+  importFiles,
+  storageNotice,
 }: {
+  cancelImport: () => void;
+  importFiles: (files: readonly File[]) => Promise<void>;
+  storageNotice: string;
   state: WizardState;
-  start: (file?: File) => Promise<void>;
+  start: () => Promise<void>;
 }) {
   if (state.kind === 'playing') return null;
   const loading = state.kind === 'loading';
@@ -22,18 +28,35 @@ export function WizardView({
       </h1>
       {!loading && (
         <>
-          <p>Select your copy to get started.</p>
+          <p className="text-base leading-relaxed">
+            This unofficial demo does not include or distribute P.T. or any of its game assets. You
+            must provide your own lawfully obtained copy to play.
+          </p>
+          <p className="mt-4 text-sm leading-relaxed text-[#aaa]">
+            Import a compatible fPKG or the three extracted game files. Your game files stay on this
+            device and are never uploaded. Progress is saved in this browser.
+          </p>
+          <p className="mt-3 text-xs leading-relaxed text-[#aaa]">
+            Not affiliated with or endorsed by Konami. Game content and trademarks belong to their
+            respective owners.
+          </p>
+          {storageNotice && (
+            <p role="status" className="mt-3 text-sm text-[#aaa]">
+              {storageNotice}
+            </p>
+          )}
           <div className="my-[26px] flex flex-wrap justify-center gap-3">
             <label className="relative inline-block cursor-pointer rounded-xs border border-[#555] bg-transparent px-5 py-[13px] text-[#eee] hover:bg-[#333] hover:outline focus-within:outline focus-within:outline-[#eee]">
-              Select PKG
+              Import your copy
               <input
                 className="sr-only"
                 type="file"
-                accept=".pkg"
+                accept=".pkg,.psarc,.qar,.bin"
+                multiple
                 onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
+                  const files = Array.from(event.currentTarget.files ?? []);
                   event.currentTarget.value = '';
-                  if (file) void start(file);
+                  if (files.length) void importFiles(files);
                 }}
               />
             </label>
@@ -61,6 +84,11 @@ export function WizardView({
             max={state.total ?? 1}
             value={state.total ? state.done : undefined}
           />
+          {state.title !== 'Loading game' && (
+            <button className="mt-4 border border-[#555] px-4 py-2" onClick={cancelImport}>
+              Cancel import
+            </button>
+          )}
           <p role="status">
             {state.total ? `${Math.round(((state.done ?? 0) / state.total) * 100)}%` : ''}
           </p>
